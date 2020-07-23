@@ -25,7 +25,7 @@ and replace `python clip.py` to `pythonw clip.py` in the run command.
 
 ### Usage
 ```
-pythonw clip.py -h
+user$ python clip.py -h
 usage: clip.py [-h] -i INPUTBED -o OUTPUTPREFIX -a ANNOT [-n [WINDOWSIZE]]
                [-x [ADJUST]] [-mg [MINGENECOUNTS]] [-mb [MINPEAKCOUNTS]]
                [-d [DISTANCE]] [-g [MYGENE]]
