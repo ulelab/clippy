@@ -23,3 +23,8 @@ Using the annotation provided, crosslinks over each gene are smoothed using a ro
 In the image below, you can see the four positions the algorithm picks out in this gene as peaks. To get broader windows we take these single nt positions and merge adjacent crosslinks.
 
 ![Image of gene](pmt2_demo.png)
+
+
+### Development ideas
+- [ ] Check for overlapping genes and have a heirarchy to deal with them
+- [ ] Try instead of merging crosslinks to get broader peak regions, use the intercept of the smoothed crosslink peaks with the green prominence line. Note: I have tried using the intrinsic width property of "find_peaks" and this seems to call things way too wide.
