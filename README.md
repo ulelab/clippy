@@ -25,11 +25,36 @@ and replace `python clip.py` to `pythonw clip.py` in the run command.
 
 ### Usage
 ```
-python clip.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gff> \
-[optional... -n <rolling-mean-window> (default: 50) \
--x <adjust-prominence> (default: 1) \
--m <min-gene-count> (default: 5) \
--g <my-gene> (default: NULL)]
+pythonw clip.py -h
+usage: clip.py [-h] -i INPUTBED -o OUTPUTPREFIX -a ANNOT [-n [WINDOWSIZE]]
+               [-x [ADJUST]] [-mg [MINGENECOUNTS]] [-mb [MINPEAKCOUNTS]]
+               [-d [DISTANCE]] [-g [MYGENE]]
+
+Call CLIP peaks.
+
+required arguments:
+  -i INPUTBED, --inputbed INPUTBED
+                        bed file containing crosslink counts at each position
+  -o OUTPUTPREFIX, --outputprefix OUTPUTPREFIX
+                        prefix for output files
+  -a ANNOT, --annot ANNOT
+                        gtf annotation file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -n [WINDOWSIZE], --windowsize [WINDOWSIZE]
+                        rolling mean window size [DEFAULT 50]
+  -x [ADJUST], --adjust [ADJUST]
+                        adjustment for prominence [DEFAULT 1]
+  -mg [MINGENECOUNTS], --mingenecounts [MINGENECOUNTS]
+                        min counts per gene to look for peaks [DEFAULT 5]
+  -mb [MINPEAKCOUNTS], --minpeakcounts [MINPEAKCOUNTS]
+                        min counts per broad peak [DEFAULT 5]
+  -d [DISTANCE], --distance [DISTANCE]
+                        distance to merge crosslinks around single nt peaks
+                        [DEFAULT 5]
+  -g [MYGENE], --mygene [MYGENE]
+                        gene name, limits analysis to single gene
 ```
 *A note on -g, my-gene option*
 
