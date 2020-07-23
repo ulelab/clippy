@@ -24,6 +24,7 @@ clip.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gff> \
 When you are testing parameters you might want to check what they look like on certain genes, to save a graph of a given gene provide the name or reference (as in your annotation) and the code will only run for your given gene and output a graph like the one below in the 'concept' section. It will save with the gene name and parameters as a file name.
 
 *A note on annotation gff*
+
 The code only requires that you have a feature labelled "gene" in the 3rd column of your gff, and assumes that the 9th column of your gff will uniquely identify your genes and contain some kind of gene name or ID.
 
 ### Run test data
