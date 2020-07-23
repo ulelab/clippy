@@ -9,11 +9,23 @@ This is a python 3 program requiring the following modules:
  - pybedtools
  - pandas
  - matplotlib
+ 
+If you use conda, I have provided an environment.yaml:
+ 
+```
+conda env create -f environment.yml
+conda activate clippy
+```
 
+Note: if you are running on MacOSX to get Matplotlib to work correctly with conda, you need to 
+```
+conda install python.app
+```
+and replace `python clip.py` to `pythonw clip.py` in the run command.
 
 ### Usage
 ```
-clip.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gff> \
+python clip.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gff> \
 [optional... -n <rolling-mean-window> (default: 50) \
 -x <adjust-prominence> (default: 1) \
 -m <min-gene-count> (default: 5) \
@@ -30,7 +42,7 @@ The code only requires that you have a feature labelled "gene" in the 3rd column
 ### Run test data
 
 ```
-clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gff \
+python clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gff \
 -n 50 -x 1 -m 5 -g pmt2
 ```
 
