@@ -19,7 +19,7 @@ conda activate clippy
 
 ### Usage
 ```
-clip.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gff> \
+python clip.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gff> \
 [optional... -n <rolling-mean-window> (default: 50) \
 -x <adjust-prominence> (default: 1) \
 -m <min-gene-count> (default: 5) \
@@ -36,7 +36,7 @@ The code only requires that you have a feature labelled "gene" in the 3rd column
 ### Run test data
 
 ```
-clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gff \
+python clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gff \
 -n 50 -x 1 -m 5 -g pmt2
 ```
 
