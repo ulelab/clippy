@@ -14,7 +14,20 @@ This is a python 3 program requiring the following modules:
 ### Usage
 ```
 get_peaks.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gtf> \
-[optional... -n <rolling-mean-window> -x <adjust-prominence> -m <min-gene-count>]
+[optional... -n <rolling-mean-window> (default: 50) \
+-x <adjust-prominence> (default: 1) \
+-m <min-gene-count> (default: 5) \
+-g <my-gene> (default: NULL)]
+```
+*A note on -g, my-gene option*
+
+When you are testing parameters you might want to check what they look like on certain genes, to save a graph of a given gene provide the name or reference (as in your annotation) and the code will only run for your given gene and output a graph like the one below in the 'concept' section. It will save with the gene name and parameters as a file name.
+
+### Run test data
+
+```
+get_peaks.py -i test/crosslinkcounts.bed -o test -a test/annot.gtf \
+-n 50 -x 1 -m 5 -g pmt2
 ```
 
 ### Concept
