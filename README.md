@@ -17,6 +17,12 @@ conda env create -f environment.yml
 conda activate clippy
 ```
 
+Note: if you are running on MacOSX to get Matplotlib to work correctly with conda, you need to 
+```
+conda install python.app
+```
+and replace `python clip.py` to `pythonw clip.py` in the run command.
+
 ### Usage
 ```
 python clip.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gff> \
