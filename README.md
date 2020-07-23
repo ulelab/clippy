@@ -1,5 +1,5 @@
 # clippy
-A wrapper around scipy "find_peaks" function to enable peak calling of CLIP data.
+A wrapper around scipy "[find_peaks](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.find_peaks.html)" function to enable peak calling of CLIP data.
 ![A dumb joke](smallerclippy.png)
 
 ### Requirements
