@@ -42,3 +42,6 @@ In the image below, you can see the four positions the algorithm picks out in th
 - [ ] Check for overlapping genes and have a heirarchy to deal with them.
 - [ ] Try instead of merging crosslinks to get broader peak regions, use the intercept of the smoothed crosslink peaks with the green prominence line. Note: I have tried using the intrinsic width property of "find_peaks" and this seems to call things way too wide.
 - [ ] Parallelise looping through genes to improve speed.
+
+### Author
+Charlotte Capitanchik - charlotte.capitanchik@crick.ac.uk
