@@ -13,7 +13,7 @@ This is a python 3 program requiring the following modules:
 
 ### Usage
 ```
-get_peaks.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gtf> \
+clip.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gtf> \
 [optional... -n <rolling-mean-window> (default: 50) \
 -x <adjust-prominence> (default: 1) \
 -m <min-gene-count> (default: 5) \
@@ -26,7 +26,7 @@ When you are testing parameters you might want to check what they look like on c
 ### Run test data
 
 ```
-get_peaks.py -i test/crosslinkcounts.bed -o test -a test/annot.gtf \
+clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gtf \
 -n 50 -x 1 -m 5 -g pmt2
 ```
 
