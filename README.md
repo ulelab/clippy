@@ -1,5 +1,6 @@
 # clippy
 A wrapper around scipy "find_peaks" function to enable peak calling of CLIP data.
+![A dumb joke](smallerclippy.png)
 
 ### Requirements
 This is a python 3 program requiring the following modules:
