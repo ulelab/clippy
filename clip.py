@@ -5,41 +5,28 @@ from scipy import stats
 import pybedtools
 import pandas as pd
 import matplotlib.pyplot as plt
-import getopt, sys
+import argparse
+import sys
 
-def main(argv):
-   counts_bed = ''
-   annot = ''
-   N = 50 # rolling mean smooth
-   X = 1 # multiplication factor for standard deviation - to define prominence
-   min_gene_count = 5 # minimum counts on a gene to consider it for peak calling
-   outfile_prefix = ''
-   my_gene = ''
-   try:
-      opts, args = getopt.getopt(argv,"hi:o:a:nxmg",["counts_bed=","outfile_prefix=","annot=","N=","X=","min_gene_count=","my_gene"])
-   except getopt.GetoptError:
-      print 'get_peaks.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gtf> [optional... -n <rolling-mean-window> -x <adjust-prominence> -m <min-gene-count>]'
-      sys.exit(2)
-   for opt, arg in opts:
-      if opt == '-h':
-         print 'get_peaks.py -i <input-bed-counts> -o <output-file-prefix> -a <annotation-gtf> [optional... -n <rolling-mean-window> -x <adjust-prominence> -m <min-gene-count>]'
-         sys.exit()
-      elif opt in ("-i", "--counts_bed"):
-         counts_bed = arg
-      elif opt in ("-o", "--outfile_prefix"):
-         outfile_prefix = arg
-      elif opt in ("-a", "--annot"):
-         annot = arg
-      elif opt in ("-n", "--N"):
-         N = arg
-      elif opt in ("-x", "--X"):
-         X = arg
-      elif opt in ("-m", "--min_gene_count"):
-         min_gene_count = arg
-      elif opt in ("-g", "--my_gene"):
-         my_gene = arg
-      outfile_name=outfile_prefix+str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
-   return(counts_bed, annot, int(N), int(X), int(min_gene_count), outfile_name, my_gene)
+def main():
+    parser = argparse.ArgumentParser(description='Call CLIP peaks.')
+    parser.add_argument('-i',"--inputbed", type=str,
+                        help='bed file containing crosslink counts at each position')
+    parser.add_argument('-o',"--outputprefix", type=str,
+                        help='prefix for output files')
+    parser.add_argument('-a',"--annot", type=str,
+                        help='gtf annotation file')
+    parser.add_argument('-n',"--windowsize", type=int,
+                        help='rolling mean window size')
+    parser.add_argument('-x',"--adjust", type=int,
+                        help='adjustment for prominence')
+    parser.add_argument('-m',"--mingenecounts", type=int,
+                        help='min counts per gene to look for peaks')
+    parser.add_argument('-g',"--mygene", type=str,
+                        help='gene name, limits analysis to single gene')
+    args = parser.parse_args()
+    outfile_name=args.outputprefix+str(args.windowsize)+"_stdev"+str(args.adjust)+"_minGeneCount"+str(args.mingenecounts)+".bed"
+    return(args.inputbed, args.annot, args.windowsize, args.adjust, args.mingenecounts, outfile_name, args.mygene)
 
 def getThePeaks(test, N, X, min_gene_count):
     # Get the peaks for one gene
@@ -77,7 +64,7 @@ def getThePeaks(test, N, X, min_gene_count):
         peaks_in_gene.append(final_peak)
 
     peaks_in_gene = pd.concat(peaks_in_gene)
-    return(peaks_in_gene, roll_mean_smoothed_scores)
+    return(peaks_in_gene, roll_mean_smoothed_scores, peaks[0])
 
 def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
     pho92_iclip = pybedtools.BedTool(counts_bed)
@@ -105,19 +92,19 @@ def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"])
     annot_gene = annot[annot.feature_type=="gene"]
     # Search for the gene we want
-    ang = ang[ang.attributes.str.upper.contains(my_gene.upper())]
+    ang = annot_gene[annot_gene.attributes.str.contains(my_gene, case=False)]
 
     if len(ang) == 0:
         sys.exit("Couldn't find your gene in the provided annotation")
     elif len(ang) > 1:
         sys.exit("Found more than one gene containing that name - could you be more specific?")
 
-    ang = pybedtools.BedTool.from_dataframe(annot_gene)
+    ang = pybedtools.BedTool.from_dataframe(ang)
  
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
 
-    peaks, roll_mean_smoothed_scores = getThePeaks(goverlaps)
+    peaks, roll_mean_smoothed_scores, plotting_peaks = getThePeaks(goverlaps, N, X, min_gene_count)
 
     if peaks.empty:
         sys.exit("No peaks found in this gene with the current parameters")
@@ -126,7 +113,9 @@ def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my
     peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
 
     # Make graph of gene
-    plt.plot(roll_mean_smoothed_scores, '-bD', markevery=peaks[0].tolist())
+    print(roll_mean_smoothed_scores)
+    print(peaks)
+    plt.plot(roll_mean_smoothed_scores, '-bD', markevery=plotting_peaks.tolist())
     plt.ylabel('roll mean smoothed cDNAs')
     plt.axhline(y=np.mean(roll_mean_smoothed_scores),linewidth=4, color='r')
     plt.axhline(y=np.mean(roll_mean_smoothed_scores)+(np.std(roll_mean_smoothed_scores)*X),linewidth=1, color='g')
@@ -139,3 +128,4 @@ if __name__ == "__main__":
         getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
     else:
         getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name)
+
