@@ -101,6 +101,27 @@ def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
     all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
 
 def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene):
+    pho92_iclip = pybedtools.BedTool(counts_bed)
+    annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"])
+    annot_gene = annot[annot.feature_type=="gene"]
+    ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
+    goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
+    goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
+
+    sep_genes = [pd.DataFrame(y) for x, y in goverlaps.groupby('gene_name', as_index=False)]
+
+    all_peaks=[]
+    for df in sep_genes:
+        peaks_in_gene = getThePeaks(df)
+        if peaks_in_gene.empty:
+            continue
+        else:
+            all_peaks.append(peaks_in_gene)
+    all_peaks = pd.concat(all_peaks)
+    print("Finished, writing file...")
+    all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
+
+    # plot peaks
     plt.plot(roll_mean_smoothed_scores, '-bD', markevery=peaks[0].tolist())
     plt.plot(troughs,np.in1d(roll_mean_smoothed_scores, troughs).nonzero()[0],'rD')
     plt.ylabel('roll mean smoothed cDNAs')
