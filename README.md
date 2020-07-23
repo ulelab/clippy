@@ -9,7 +9,13 @@ This is a python 3 program requiring the following modules:
  - pybedtools
  - pandas
  - matplotlib
-
+ 
+If you use conda, I have provided an environment.yaml:
+ 
+```
+conda env create -f environment.yml
+conda activate clippy
+```
 
 ### Usage
 ```
