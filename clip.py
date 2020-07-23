@@ -39,7 +39,7 @@ def main(argv):
       elif opt in ("-g", "--my_gene"):
          my_gene = arg
       outfile_name=outfile_prefix+str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
-   return(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
+   return(counts_bed, annot, int(N), int(X), int(min_gene_count), outfile_name, my_gene)
 
 def getThePeaks(test, N, X, min_gene_count):
     # Get the peaks for one gene
@@ -77,7 +77,7 @@ def getThePeaks(test, N, X, min_gene_count):
         peaks_in_gene.append(final_peak)
 
     peaks_in_gene = pd.concat(peaks_in_gene)
-    return(peaks_in_gene)
+    return(peaks_in_gene, roll_mean_smoothed_scores)
 
 def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
     pho92_iclip = pybedtools.BedTool(counts_bed)
@@ -91,43 +91,47 @@ def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
 
     all_peaks=[]
     for df in sep_genes:
-        peaks_in_gene = getThePeaks(df)
+        peaks_in_gene = getThePeaks(df)[0]
         if peaks_in_gene.empty:
             continue
         else:
             all_peaks.append(peaks_in_gene)
     all_peaks = pd.concat(all_peaks)
-    print("Finished, writing file...")
     all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
+    print("Finished, written peaks file.")
 
 def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene):
     pho92_iclip = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"])
     annot_gene = annot[annot.feature_type=="gene"]
-    ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
+    # Search for the gene we want
+    ang = ang[ang.attributes.str.upper.contains(my_gene.upper())]
+
+    if len(ang) == 0:
+        sys.exit("Couldn't find your gene in the provided annotation")
+    elif len(ang) > 1:
+        sys.exit("Found more than one gene containing that name - could you be more specific?")
+
+    ang = pybedtools.BedTool.from_dataframe(annot_gene)
+ 
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
 
-    sep_genes = [pd.DataFrame(y) for x, y in goverlaps.groupby('gene_name', as_index=False)]
+    peaks, roll_mean_smoothed_scores = getThePeaks(goverlaps)
 
-    all_peaks=[]
-    for df in sep_genes:
-        peaks_in_gene = getThePeaks(df)
-        if peaks_in_gene.empty:
-            continue
-        else:
-            all_peaks.append(peaks_in_gene)
-    all_peaks = pd.concat(all_peaks)
-    print("Finished, writing file...")
-    all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
+    if peaks.empty:
+        sys.exit("No peaks found in this gene with the current parameters")
 
-    # plot peaks
+    outfile_name=my_gene+str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
+    peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
+
+    # Make graph of gene
     plt.plot(roll_mean_smoothed_scores, '-bD', markevery=peaks[0].tolist())
-    plt.plot(troughs,np.in1d(roll_mean_smoothed_scores, troughs).nonzero()[0],'rD')
     plt.ylabel('roll mean smoothed cDNAs')
     plt.axhline(y=np.mean(roll_mean_smoothed_scores),linewidth=4, color='r')
     plt.axhline(y=np.mean(roll_mean_smoothed_scores)+(np.std(roll_mean_smoothed_scores)*X),linewidth=1, color='g')
     plt.savefig(my_gene+'.png')
+    print("Finished, written peak file and gene graph.")
 
 if __name__ == "__main__":
     counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene = main()
@@ -135,18 +139,3 @@ if __name__ == "__main__":
         getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
     else:
         getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name)
-
-# code graveyard
-#   troughs = sig.argrelextrema(roll_mean_smoothed_scores, np.less)[0].tolist()
-#   troughs = roll_mean_smoothed_scores[troughs]
-#   troughs = troughs[troughs < (np.mean(roll_mean_smoothed_scores)+(np.std(roll_mean_smoothed_scores)*X))]
-#   trough_positions = np.in1d(roll_mean_smoothed_scores, troughs).nonzero()[0]
-#   print(trough_positions)
-#   if trough_positions.size == 0:
-#       return pd.DataFrame({'A' : []})
-#plt.plot(roll_mean_smoothed_scores, '-bD', markevery=peaks[0].tolist())
-#plt.plot(troughs,np.in1d(roll_mean_smoothed_scores, troughs).nonzero()[0],'rD')
-#plt.ylabel('roll mean smoothed cDNAs')
-#plt.axhline(y=np.mean(roll_mean_smoothed_scores),linewidth=4, color='r')
-#plt.axhline(y=np.mean(roll_mean_smoothed_scores)+(np.std(roll_mean_smoothed_scores)*X),linewidth=1, color='g')
-#plt.savefig('ime1_demo.png')
