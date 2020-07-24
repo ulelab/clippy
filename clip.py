@@ -18,17 +18,17 @@ def main():
                         help='prefix for output files')
     required.add_argument('-a',"--annot", type=str, required=True,
                         help='gtf annotation file')
-    optional.add_argument('-n',"--windowsize", type=int, const=50, nargs='?',
+    optional.add_argument('-n',"--windowsize", type=int, default=50, nargs='?',
                         help='rolling mean window size [DEFAULT 50]')
-    optional.add_argument('-x',"--adjust", type=int, const=1, nargs='?',
+    optional.add_argument('-x',"--adjust", type=int, default=1, nargs='?',
                         help='adjustment for prominence [DEFAULT 1]')
-    optional.add_argument('-mg',"--mingenecounts", type=int, const=5, nargs='?',
+    optional.add_argument('-mg',"--mingenecounts", type=int, default=5, nargs='?',
                         help='min counts per gene to look for peaks [DEFAULT 5]')
-    optional.add_argument('-mb',"--minpeakcounts", type=int, const=5, nargs='?',
+    optional.add_argument('-mb',"--minpeakcounts", type=int, default=5, nargs='?',
                         help='min counts per broad peak [DEFAULT 5]')
-    optional.add_argument('-d',"--distance", type=int, const=5, nargs='?',
-                        help='distance to merge crosslinks around single nt peaks [DEFAULT 5]')
-    optional.add_argument('-g',"--mygene", type=str, const="", nargs='?',
+    optional.add_argument('-d',"--distance", type=int, default=10, nargs='?',
+                        help='distance to merge crosslinks around single nt peaks [DEFAULT 10]')
+    optional.add_argument('-g',"--mygene", type=str, nargs='?',
                         help='gene name, limits analysis to single gene')
     parser._action_groups.append(optional)
     args = parser.parse_args()

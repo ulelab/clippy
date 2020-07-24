@@ -52,7 +52,7 @@ optional arguments:
                         min counts per broad peak [DEFAULT 5]
   -d [DISTANCE], --distance [DISTANCE]
                         distance to merge crosslinks around single nt peaks
-                        [DEFAULT 5]
+                        [DEFAULT 10]
   -g [MYGENE], --mygene [MYGENE]
                         gene name, limits analysis to single gene
 ```
@@ -67,8 +67,8 @@ The code only requires that you have a feature labelled "gene" in the 3rd column
 ### Run test data
 
 ```
-python clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gff \
--n 50 -x 1 -m 5 -g pmt2
+pythonw clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gff \
+-n 50 -x 1 -mg 5 -mb 5 -g pmt2 -d 10
 ```
 
 ### Concept
