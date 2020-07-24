@@ -33,7 +33,7 @@ def main():
     parser._action_groups.append(optional)
     args = parser.parse_args()
     print(args)
-    outfile_name=args.outputprefix+str(args.windowsize)+"_stdev"+str(args.adjust)+"_minGeneCount"+str(args.mingenecounts)+".bed"
+    outfile_name=args.outputprefix+"_rollmean" +str(args.windowsize,)+"_stdev"+str(args.adjust)+"_minGeneCount"+str(args.mingenecounts)+".bed"
     return(args.inputbed, args.annot, args.windowsize, args.adjust, args.mingenecounts, outfile_name, args.mygene, args.distance, args.minpeakcounts)
 
 def getThePeaks(test, N, X, min_gene_count):
@@ -77,7 +77,7 @@ def getThePeaks(test, N, X, min_gene_count):
 
 def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
     pho92_iclip = pybedtools.BedTool(counts_bed)
-    annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"])
+    annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
     ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
@@ -94,29 +94,19 @@ def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
             all_peaks.append(peaks_in_gene)
     all_peaks = pd.concat(all_peaks)
     all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
-    print("Finished, written peaks file.")
+    return(pybedtools.BedTool.from_dataframe(all_peaks))
+    print("Finished, written single nt peaks file.")
 
-def getBroadPeaks(crosslinks, peaks, distance): # crosslinks and peaks are both bedtools 
+def getBroadPeaks(crosslinks, peaks, distance, min_peak_count, outfile_name): # crosslinks and peaks are both bedtools 
     xlinks = crosslinks.sort()
-    merged_xlinks = singlepks.merge(d=distance, c=[4,5,6], s=True, o=[distinct,sum,distinct])
-    final_peaks = merged_xlinks.intersect(peaks, s=True, u=True)
+    merged_xlinks = xlinks.merge(d=distance, c=[5,6], s=True, o=["sum","distinct"])
+    final_peaks = merged_xlinks.intersect(peaks, s=True, u=True).filter(lambda x: x.score >= min_peak_count)
+    final_peaks.saveas(outfile_name)
+    print("Finished, written broad peaks file.")
 
-bedtools merge \
--i df.sorted \
--d 10 \
--c 4,5,6 \
--s \
--o distinct,sum,distinct > PTB.merged.distance5.bed
-
-bedtools intersect -a PTB.merged.distance5.bed \
--b PTB_peaks_window50_stdev1_minGeneCount5.bed \
--s -u > PTB_peaks_window50_stdev1_minGeneCount5.broadPeaks.bed
-
-awk '{ if ($5 >= 5) print }' PTB_peaks_window50_stdev1_minGeneCount5.broadPeaks.bed > \
-PTB_peaks_window50_stdev1_minGeneCount5.broadPeaks.filter5.bed
 
 def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene):
-    pho92_iclip = pybedtools.BedTool(counts_bed)
+    pho92_iclip = counts_bed
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"])
     annot_gene = annot[annot.feature_type=="gene"]
     # Search for the gene we want
@@ -147,11 +137,18 @@ def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my
     plt.axhline(y=np.mean(roll_mean_smoothed_scores)+(np.std(roll_mean_smoothed_scores)*X),linewidth=1, color='g')
     plt.savefig(my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".png")
     print("Finished, written peak file and gene graph.")
+    return(pybedtools.BedTool.from_dataframe(peaks))
 
 if __name__ == "__main__":
     counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene, distance, min_peak_count = main()
+    counts_bed = pybedtools.BedTool(counts_bed)
     if not(my_gene is None):
-        getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
+        outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
+        peaks = getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
+        outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+"_broadPeaks.bed"
+        getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
     else:
-        getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name)
+        peaks = getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name)
+        outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
+        getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
 
