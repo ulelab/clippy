@@ -20,7 +20,7 @@ def main():
                         help='gtf annotation file')
     optional.add_argument('-n',"--windowsize", type=int, default=50, nargs='?',
                         help='rolling mean window size [DEFAULT 50]')
-    optional.add_argument('-x',"--adjust", type=int, default=1, nargs='?',
+    optional.add_argument('-x',"--adjust", type=float, default=1, nargs='?',
                         help='adjustment for prominence [DEFAULT 1]')
     optional.add_argument('-mg',"--mingenecounts", type=int, default=5, nargs='?',
                         help='min counts per gene to look for peaks [DEFAULT 5]')
@@ -42,8 +42,8 @@ def getThePeaks(test, N, X, min_gene_count):
     chrom = test.chrom.iloc[0]
     genename = test.gene_name.iloc[0]
     strand = test.strand.iloc[0]
-    start = test.gene_start.iloc[0]
-    stop = test.gene_stop.iloc[0]
+    start = int(test.gene_start.iloc[0])
+    stop = int(test.gene_stop.iloc[0])
     all_vals = np.arange(start,stop,1)
     score_default = np.zeros(stop-start)
     default = pd.DataFrame({'start':all_vals, 'score':score_default})
