@@ -36,7 +36,7 @@ def main():
     outfile_name=args.outputprefix+"_rollmean" +str(args.windowsize,)+"_stdev"+str(args.adjust)+"_minGeneCount"+str(args.mingenecounts)+".bed"
     return(args.inputbed, args.annot, args.windowsize, args.adjust, args.mingenecounts, outfile_name, args.mygene, args.distance, args.minpeakcounts)
 
-def getThePeaks(test, N, X, min_gene_count):
+def getThePeaks(test, N, X, min_gene_count, counter):
     # Get the peaks for one gene
     # Now need to get an array of values
     chrom = test.chrom.iloc[0]
@@ -72,7 +72,9 @@ def getThePeaks(test, N, X, min_gene_count):
 
     peaks_in_gene = pd.concat(peaks_in_gene)
     peaks_in_gene = peaks_in_gene[["chrom","start","end","name","score","strand"]]
-    print("Done for "+genename)
+
+    if counter % 1000 == 0:
+        print("Done for "+str(counter)+" genes")
     return(peaks_in_gene, roll_mean_smoothed_scores, peaks[0])
 
 def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
@@ -86,8 +88,10 @@ def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
     sep_genes = [pd.DataFrame(y) for x, y in goverlaps.groupby('gene_name', as_index=False)]
 
     all_peaks=[]
+    counter =0
     for df in sep_genes:
-        peaks_in_gene, rollingmean, plottingpeaks = getThePeaks(df, N, X, min_gene_count)
+        counter += 1
+        peaks_in_gene, rollingmean, plottingpeaks = getThePeaks(df, N, X, min_gene_count, counter)
         if peaks_in_gene.empty:
             continue
         else:
@@ -122,7 +126,7 @@ def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
 
-    peaks, roll_mean_smoothed_scores, plotting_peaks = getThePeaks(goverlaps, N, X, min_gene_count)
+    peaks, roll_mean_smoothed_scores, plotting_peaks = getThePeaks(goverlaps, N, X, min_gene_count, 1)
 
     if peaks.empty:
         sys.exit("No peaks found in this gene with the current parameters")
