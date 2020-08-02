@@ -89,7 +89,8 @@ def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
 
     all_peaks=[]
     counter =0
-    for df in sep_genes:
+    for i in range(len(sep_genes)):
+        df = sep_genes[i]
         counter += 1
         peaks_in_gene, rollingmean, plottingpeaks = getThePeaks(df, N, X, min_gene_count, counter)
         if peaks_in_gene.empty:
