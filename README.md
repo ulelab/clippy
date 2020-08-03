@@ -9,7 +9,9 @@ This is a python 3 program requiring the following modules:
  - pybedtools
  - pandas
  - matplotlib
- 
+
+It is important to use bedtools v2.26.0. Also note, running matplotlib on a cluster it is helpful to add `export QT_QPA_PLATFORM='offscreen'` to your bash profile to avoid display errors.
+
 If you use conda, I have provided an environment.yaml:
  
 ```
