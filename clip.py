@@ -103,9 +103,7 @@ def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
     print("Finished, written single nt peaks file.")
 
 def getBroadPeaks(crosslinks, peaks, distance, min_peak_count, outfile_name): # crosslinks and peaks are both bedtools 
-    xlinks = crosslinks.sort()
-    print(xlinks)
-    merged_xlinks = xlinks.merge(d=distance, c=[5,6], s=True, o=["sum","distinct"])
+    merged_xlinks = crosslinks.sort().merge(d=distance, c=[5,6], s=True, o=["sum","distinct"])
     final_peaks = merged_xlinks.intersect(peaks, s=True, u=True).filter(lambda x: x.score >= min_peak_count)
     final_peaks.saveas(outfile_name)
     print("Finished, written broad peaks file.")
