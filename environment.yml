@@ -1,6 +1,7 @@
 name: clippy
 channels:
   - anaconda
+  - conda-forge
   - bioconda
   - r
   - bcbio
