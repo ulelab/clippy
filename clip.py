@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 import scipy.signal as sig
 from scipy.ndimage.filters import uniform_filter1d
