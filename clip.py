@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
 import sys
-from dash_app import DashApp
+import interaction
 
 def main():
     parser = argparse.ArgumentParser(description='Call CLIP peaks.')
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         min_peak_count, interactive) = main()
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
-        app = DashApp(counts_bed)
+        app = interaction.DashApp(counts_bed, annot)
         app.run()
     else:
         if my_gene is None:
