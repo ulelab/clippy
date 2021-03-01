@@ -7,6 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
 import sys
+from dash_app import DashApp
 
 def main():
     parser = argparse.ArgumentParser(description='Call CLIP peaks.')
@@ -30,11 +31,14 @@ def main():
                         help='distance to merge crosslinks around single nt peaks [DEFAULT 10]')
     optional.add_argument('-g',"--mygene", type=str, nargs='?',
                         help='gene name, limits analysis to single gene')
+    optional.add_argument('-int', "--interactive", action='store_true',
+                        help='starts a Dash server to allow for interactive parameter tuning')
     parser._action_groups.append(optional)
     args = parser.parse_args()
     print(args)
     outfile_name=args.outputprefix+"_rollmean" +str(args.windowsize,)+"_stdev"+str(args.adjust)+"_minGeneCount"+str(args.mingenecounts)+".bed"
-    return(args.inputbed, args.annot, args.windowsize, args.adjust, args.mingenecounts, outfile_name, args.mygene, args.distance, args.minpeakcounts)
+    return(args.inputbed, args.annot, args.windowsize, args.adjust, args.mingenecounts,
+        outfile_name, args.mygene, args.distance, args.minpeakcounts, args.interactive)
 
 def getThePeaks(test, N, X, min_gene_count, counter):
     # Get the peaks for one gene
@@ -144,15 +148,19 @@ def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my
     return(pybedtools.BedTool.from_dataframe(peaks))
 
 if __name__ == "__main__":
-    counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene, distance, min_peak_count = main()
+    (counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene, distance,
+        min_peak_count, interactive) = main()
     counts_bed = pybedtools.BedTool(counts_bed)
-    if not(my_gene is None):
-        outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
-        peaks = getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
-        outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+"_broadPeaks.bed"
-        getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
+    if interactive:
+        app = DashApp(counts_bed)
+        app.run()
     else:
-        peaks = getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name)
-        outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
-        getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
-
+        if my_gene is None:
+            peaks = getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name)
+            outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
+            getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
+        else:
+            outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
+            peaks = getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
+            outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+"_broadPeaks.bed"
+            getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)

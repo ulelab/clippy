@@ -16,3 +16,4 @@ dependencies:
   - pybedtools
   - scipy
   - matplotlib
+  - dash=1.19.0
