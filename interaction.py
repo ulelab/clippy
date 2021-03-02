@@ -9,8 +9,12 @@ import pandas as pd
 import numpy as np
 import pybedtools
 import clip
+import re
 
 top_x_search_results = 20
+name_delimiter = "; "
+gtf_delimiter = ";"
+gtf_attribute_filters = ["_name", "_id"]
 
 class DashApp:
     def __init__(self, counts_bed, annot):
@@ -22,7 +26,24 @@ class DashApp:
         self.annot = pd.read_table(annot, header=None, names=["chrom", "source",
             "feature_type", "start", "end", "score", "strand", "frame", "attributes"])
         self.annot = self.annot[self.annot.feature_type=="gene"]
-        self.gene_names = self.annot.attributes.tolist()
+        self.gene_names = self.format_gene_list(self.annot.attributes.tolist())
+        self.annot['gene_names'] = self.gene_names
+
+    def format_gene_list(self, raw_gene_list):
+        return([self.format_gene_name(raw_gene_name)
+            for raw_gene_name in raw_gene_list])
+
+    def format_gene_name(self, raw_gene_name):
+        p = re.compile('(\S*).+"(\S*)"')
+        gtf_dict = {
+            m.group(1): m.group(2)
+            for m in [
+                p.match(attr.strip())
+                for attr in raw_gene_name.split(gtf_delimiter)
+            ] if m
+        }
+        return(name_delimiter.join(set([value for key, value in gtf_dict.items()
+            if any([filt in key for filt in gtf_attribute_filters])])))
 
     def setup_layout(self):
         self.app.layout = dash_html.Div([
@@ -37,7 +58,7 @@ class DashApp:
             dash_cc.Dropdown(
                 options=[
                     {'label': gene, 'value': gene}
-                    for gene in self.gene_names[:5]],
+                    for gene in self.gene_names[:top_x_search_results]],
                 id="gene-select",
                 value=[self.gene_names[0]],
                 multi=True
@@ -105,16 +126,16 @@ class DashApp:
     def update_figure(self, gene, N, X, min_gene_count, current_figure):
         # Perform the peak calling
         if len(gene) > 0:
-            annot_gene = self.annot.loc[self.annot.attributes==gene[0]]
+            annot_gene = self.annot.loc[self.annot.gene_names==gene[0]]
             annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
             gene_xlink_overlap = self.counts_bed.intersect(annot_gene, s=True, wo=True).to_dataframe(
                 names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature',
-                'gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
+                'gene_start','gene_stop','nothing','strand2','nothing2','attributes','gene_name','interval'])
             gene_xlink_overlap.drop(['name','chrom2','nothing','nothing2','interval','strand2','source',
-                'feature'], axis=1, inplace=True)
+                'feature','attributes'], axis=1, inplace=True)
         # Check if there is no gene information or there are no 
         if len(gene) == 0 or gene_xlink_overlap.shape[0] == 0:
-            peaks ,roll_mean_smoothed_scores, plotting_peaks = [[]]*3
+            peaks, roll_mean_smoothed_scores, plotting_peaks = [[]]*3
         else:
             peaks, roll_mean_smoothed_scores, plotting_peaks = clip.getThePeaks(
                 gene_xlink_overlap, N, X, min_gene_count, counter=1)
