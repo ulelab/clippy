@@ -20,6 +20,7 @@ class DashApp:
     def __init__(self, counts_bed, annot):
         self.read_annot(annot)
         self.counts_bed = counts_bed
+        self.gene_xlink_dicts = {}
         self.app = dash.Dash(__name__)
 
     def read_annot(self, annot):
@@ -126,19 +127,22 @@ class DashApp:
     def update_figure(self, gene, N, X, min_gene_count, current_figure):
         # Perform the peak calling
         if len(gene) > 0:
-            annot_gene = self.annot.loc[self.annot.gene_names==gene[0]]
-            annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
-            gene_xlink_overlap = self.counts_bed.intersect(annot_gene, s=True, wo=True).to_dataframe(
-                names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature',
-                'gene_start','gene_stop','nothing','strand2','nothing2','attributes','gene_name','interval'])
-            gene_xlink_overlap.drop(['name','chrom2','nothing','nothing2','interval','strand2','source',
-                'feature','attributes'], axis=1, inplace=True)
-        # Check if there is no gene information or there are no 
-        if len(gene) == 0 or gene_xlink_overlap.shape[0] == 0:
+            gene = gene[0]
+            if not gene in self.gene_xlink_dicts:
+                annot_gene = self.annot.loc[self.annot.gene_names==gene]
+                annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
+                self.gene_xlink_dicts[gene] = self.counts_bed.intersect(annot_gene, s=True, wo=True).to_dataframe(
+                    names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature',
+                    'gene_start','gene_stop','nothing','strand2','nothing2','attributes','gene_name','interval'])
+                self.gene_xlink_dicts[gene].drop(['name','chrom2','nothing','nothing2','interval','strand2','source',
+                    'feature','attributes'], axis=1, inplace=True)
+
+        # Perform the peak calling if the gene is valid
+        if len(gene) == 0 or self.gene_xlink_dicts[gene].shape[0] == 0:
             peaks, roll_mean_smoothed_scores, plotting_peaks = [[]]*3
         else:
             peaks, roll_mean_smoothed_scores, plotting_peaks = clip.getThePeaks(
-                gene_xlink_overlap, N, X, min_gene_count, counter=1)
+                self.gene_xlink_dicts[gene], N, X, min_gene_count, counter=1)
 
         # Plot the rolling mean and thresholds
         fig = plotlyex.line(
