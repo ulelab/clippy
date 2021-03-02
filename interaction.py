@@ -26,8 +26,12 @@ class DashApp:
 
     def setup_layout(self):
         self.app.layout = dash_html.Div([
-            dash_cc.Graph(
-                id='gene-graph'
+            dash_cc.Loading(
+                id="loading-1",
+                type="default",
+                children=[
+                    dash_cc.Graph(id='gene-graph')
+                ]
             ),
             dash_html.Label('Gene search'),
             dash_cc.Dropdown(
