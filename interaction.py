@@ -48,11 +48,12 @@ class DashApp:
 
     def setup_layout(self):
         self.app.layout = dash_html.Div([
+            dash_cc.Graph(id='gene-graph'),
             dash_cc.Loading(
-                id="loading-1",
+                id="loading",
                 type="default",
                 children=[
-                    dash_cc.Graph(id='gene-graph')
+                    dash_html.Div(id="graph-loading-indicator")
                 ]
             ),
             dash_html.Label('Gene search'),
@@ -96,6 +97,7 @@ class DashApp:
     def setup_callbacks(self):
         self.app.callback(
             Output('gene-graph', 'figure'),
+            Output('graph-loading-indicator', 'value'),
             Input('gene-select', 'value'),
             Input('n-slider', 'value'),
             Input('x-slider', 'value'),
@@ -193,4 +195,4 @@ class DashApp:
                 current_figure['yaxis.range[0]'],
                 current_figure['yaxis.range[1]']
             ]
-        return(fig)
+        return(fig, '')
