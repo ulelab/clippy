@@ -104,15 +104,21 @@ class DashApp:
 
     def update_figure(self, gene, N, X, min_gene_count, current_figure):
         # Perform the peak calling
-        annot_gene = self.annot.loc[self.annot.attributes==gene[0]]
-        annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
-        gene_xlink_overlap = self.counts_bed.intersect(annot_gene, s=True, wo=True).to_dataframe(
-            names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature',
-            'gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
-        gene_xlink_overlap.drop(['name','chrom2','nothing','nothing2','interval','strand2','source',
-            'feature'], axis=1, inplace=True)
-        peaks, roll_mean_smoothed_scores, plotting_peaks = clip.getThePeaks(
-            gene_xlink_overlap, N, X, min_gene_count, counter=1)
+        if len(gene) > 0:
+            annot_gene = self.annot.loc[self.annot.attributes==gene[0]]
+            annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
+            gene_xlink_overlap = self.counts_bed.intersect(annot_gene, s=True, wo=True).to_dataframe(
+                names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature',
+                'gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
+            gene_xlink_overlap.drop(['name','chrom2','nothing','nothing2','interval','strand2','source',
+                'feature'], axis=1, inplace=True)
+        # Check if there is no gene information or there are no 
+        if len(gene) == 0 or gene_xlink_overlap.shape[0] == 0:
+            peaks ,roll_mean_smoothed_scores, plotting_peaks = [[]]*3
+        else:
+            peaks, roll_mean_smoothed_scores, plotting_peaks = clip.getThePeaks(
+                gene_xlink_overlap, N, X, min_gene_count, counter=1)
+
         # Plot the rolling mean and thresholds
         fig = plotlyex.line(
             {
@@ -121,18 +127,19 @@ class DashApp:
             },
             x="position", y="roll_mean_smoothed_scores"
         )
-        mean_val = np.mean(roll_mean_smoothed_scores)
-        fig.add_trace(plotlygo.Scatter(
-            x=list(range(len(roll_mean_smoothed_scores))),
-            y=[mean_val] * len(roll_mean_smoothed_scores),
-            mode='lines',
-            name='mean'))
-        prominence_threshold_val = mean_val + (np.std(roll_mean_smoothed_scores)*X)
-        fig.add_trace(plotlygo.Scatter(
-            x=list(range(len(roll_mean_smoothed_scores))),
-            y=[prominence_threshold_val] * len(roll_mean_smoothed_scores),
-            mode='lines',
-            name='prominence threshold'))
+        if len(roll_mean_smoothed_scores) > 0:
+            mean_val = np.mean(roll_mean_smoothed_scores)
+            fig.add_trace(plotlygo.Scatter(
+                x=list(range(len(roll_mean_smoothed_scores))),
+                y=[mean_val] * len(roll_mean_smoothed_scores),
+                mode='lines',
+                name='mean'))
+            prominence_threshold_val = mean_val + (np.std(roll_mean_smoothed_scores)*X)
+            fig.add_trace(plotlygo.Scatter(
+                x=list(range(len(roll_mean_smoothed_scores))),
+                y=[prominence_threshold_val] * len(roll_mean_smoothed_scores),
+                mode='lines',
+                name='prominence threshold'))
         # Add in peaks, if they have been called
         if len(plotting_peaks) > 0:
             fig.add_trace(plotlygo.Scatter(
@@ -151,12 +158,12 @@ class DashApp:
                 selector={"mode": "markers"}
             )
         # Keep the same zoom level for the graph, if the user has changed that
-        if 'xaxis.range[0]' in current_figure:
+        if current_figure and 'xaxis.range[0]' in current_figure:
             fig['layout']['xaxis']['range'] = [
                 current_figure['xaxis.range[0]'],
                 current_figure['xaxis.range[1]']
             ]
-        if 'yaxis.range[0]' in current_figure:
+        if current_figure and 'yaxis.range[0]' in current_figure:
             fig['layout']['yaxis']['range'] = [
                 current_figure['yaxis.range[0]'],
                 current_figure['yaxis.range[1]']
