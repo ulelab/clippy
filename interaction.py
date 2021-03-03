@@ -97,7 +97,7 @@ class DashApp:
     def setup_callbacks(self):
         self.app.callback(
             Output('gene-graph', 'figure'),
-            Output('graph-loading-indicator', 'value'),
+            Output('graph-loading-indicator', 'children'),
             Input('gene-select', 'value'),
             Input('n-slider', 'value'),
             Input('x-slider', 'value'),
@@ -195,4 +195,4 @@ class DashApp:
                 current_figure['yaxis.range[0]'],
                 current_figure['yaxis.range[1]']
             ]
-        return(fig, '')
+        return(fig, [])
