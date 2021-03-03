@@ -39,7 +39,7 @@ class DashApp:
         gtf_dict = {
             m.group(1): m.group(2)
             for m in [
-                p.match(attr.strip())
+                p.search(attr.strip())
                 for attr in raw_gene_name.split(gtf_delimiter)
             ] if m
         }
@@ -116,9 +116,10 @@ class DashApp:
     def update_gene_select(self, search_value, value):
         if not search_value:
             raise(PreventUpdate)
+        p = re.compile(search_value, re.IGNORECASE)
         matching_gene_names = [
             gene_name for gene_name in self.gene_names
-            if search_value in gene_name
+            if p.search(gene_name)
         ]
         return_options = [
             {'label': gene_name, 'value': gene_name}
