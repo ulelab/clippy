@@ -3,6 +3,7 @@ import dash_core_components as dash_cc
 import dash_html_components as dash_html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
+import dash_bootstrap_components as dash_bs
 import plotly.express as plotlyex
 import plotly.graph_objects as plotlygo
 import pandas as pd
@@ -21,7 +22,7 @@ class DashApp:
         self.read_annot(annot)
         self.counts_bed = counts_bed
         self.gene_xlink_dicts = {}
-        self.app = dash.Dash(__name__)
+        self.app = dash.Dash(__name__, external_stylesheets=[dash_bs.themes.BOOTSTRAP])
 
     def read_annot(self, annot):
         self.annot = pd.read_table(annot, header=None, names=["chrom", "source",
@@ -47,51 +48,69 @@ class DashApp:
             if any([filt in key for filt in gtf_attribute_filters])])))
 
     def setup_layout(self):
-        self.app.layout = dash_html.Div([
-            dash_html.Div(id='gene-graphs'),
-            dash_cc.Loading(
-                id="loading",
-                type="default",
-                children=[
-                    dash_html.Div(id="graph-loading-indicator")
-                ]
-            ),
-            dash_html.Label('Gene search'),
-            dash_cc.Dropdown(
-                options=[
-                    {'label': gene, 'value': gene}
-                    for gene in self.gene_names[:top_x_search_results]],
-                id="gene-select",
-                value=[],
-                multi=True
-            ),
-            dash_html.Label('Rolling mean window size'),
-            dash_cc.Slider(
-                id='n-slider',
-                min=1,
-                max=200,
-                step=1,
-                value=50,
-                tooltip={'always_visible': True, 'placement': 'bottom'}
-            ),
-            dash_html.Label('Prominence adjustment'),
-            dash_cc.Slider(
-                id='x-slider',
-                min=0,
-                max=3,
-                step=0.1,
-                value=1,
-                tooltip={'always_visible': True, 'placement': 'bottom'}
-            ),
-            dash_html.Label('Minimum counts per gene to look for peaks'),
-            dash_cc.Slider(
-                id='min-count-slider',
-                min=1,
-                max=200,
-                step=1,
-                value=5,
-                tooltip={'always_visible': True, 'placement': 'bottom'}
-            )
+        self.app.layout = dash_bs.Container([
+            dash_bs.Row(dash_bs.Col(dash_html.Center(
+                dash_html.H1('Clippy Interactive Parameter Search')
+            ))),
+            dash_bs.Row([
+                dash_bs.Col([
+                    dash_html.Div(id='gene-graphs')
+                ], lg=9),
+                dash_bs.Col(dash_html.Div([
+                    dash_html.Div(dash_html.Center(dash_html.H3('Controls')), className='card-header'),
+                    dash_html.Div([
+                        dash_bs.ButtonGroup(
+                            [
+                                dash_bs.Button('Server status:', disabled=True),
+                                dash_bs.Button(
+                                    dash_bs.Spinner(dash_html.Div(
+                                        id="graph-loading-indicator",
+                                        className='m-3'
+                                    )),
+                                    disabled=True
+                                )
+                            ]
+                        ),
+                        dash_html.Label('Gene search'),
+                        dash_cc.Dropdown(
+                            options=[
+                                {'label': gene, 'value': gene}
+                                for gene in self.gene_names[:top_x_search_results]],
+                            id="gene-select",
+                            value=[],
+                            multi=True,
+                            optionHeight=80
+                        ),
+                        dash_html.Label('Rolling mean window size'),
+                        dash_cc.Slider(
+                            id='n-slider',
+                            min=1,
+                            max=200,
+                            step=1,
+                            value=50,
+                            tooltip={'always_visible': True, 'placement': 'bottom'}
+                        ),
+                        dash_html.Label('Prominence adjustment'),
+                        dash_cc.Slider(
+                            id='x-slider',
+                            min=0,
+                            max=3,
+                            step=0.1,
+                            value=1,
+                            tooltip={'always_visible': True, 'placement': 'bottom'}
+                        ),
+                        dash_html.Label('Minimum counts per gene to look for peaks'),
+                        dash_cc.Slider(
+                            id='min-count-slider',
+                            min=1,
+                            max=200,
+                            step=1,
+                            value=5,
+                            tooltip={'always_visible': True, 'placement': 'bottom'}
+                        )
+                    ], className='card-body')
+                ], className='card bg-default sticky-top'), lg=3)
+            ])
         ])
 
     def setup_callbacks(self):
@@ -148,7 +167,7 @@ class DashApp:
         else:
             figs = [self.peak_call_and_plot(gene, N, X, min_gene_count, current_figures)
                 for gene in gene_list]
-        return(figs, [])
+        return(figs, 'Idle')
 
     def peak_call_and_plot(self, gene_name, N, X, min_gene_count, current_figures):
         # Perform the peak calling if the gene is valid
@@ -172,6 +191,12 @@ class DashApp:
                 'x':0.5,
                 'xanchor': 'center',
                 'yanchor': 'top'
+            },
+            legend={
+                "yanchor": "top",
+                "y": 0.99,
+                "xanchor": "left",
+                "x": 0.01
             }
         )
         if len(roll_mean_smoothed_scores) > 0:
