@@ -48,7 +48,7 @@ class DashApp:
 
     def setup_layout(self):
         self.app.layout = dash_html.Div([
-            dash_cc.Graph(id='gene-graph'),
+            dash_html.Div(id='gene-graphs'),
             dash_cc.Loading(
                 id="loading",
                 type="default",
@@ -62,7 +62,7 @@ class DashApp:
                     {'label': gene, 'value': gene}
                     for gene in self.gene_names[:top_x_search_results]],
                 id="gene-select",
-                value=[self.gene_names[0]],
+                value=[],
                 multi=True
             ),
             dash_html.Label('Rolling mean window size'),
@@ -96,13 +96,13 @@ class DashApp:
 
     def setup_callbacks(self):
         self.app.callback(
-            Output('gene-graph', 'figure'),
+            Output('gene-graphs', 'children'),
             Output('graph-loading-indicator', 'children'),
             Input('gene-select', 'value'),
             Input('n-slider', 'value'),
             Input('x-slider', 'value'),
             Input('min-count-slider', 'value'),
-            State('gene-graph', 'relayoutData'))(self.update_figure)
+            State('gene-graphs', 'children'))(self.update_figures)
         self.app.callback(
             Output('gene-select', 'options'),
             Input('gene-select', 'search_value'),
@@ -126,26 +126,36 @@ class DashApp:
         ]
         return(return_options)
 
-    def update_figure(self, gene, N, X, min_gene_count, current_figure):
-        # Perform the peak calling
-        if len(gene) > 0:
-            gene = gene[0]
-            if not gene in self.gene_xlink_dicts:
-                annot_gene = self.annot.loc[self.annot.gene_names==gene]
-                annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
-                self.gene_xlink_dicts[gene] = self.counts_bed.intersect(annot_gene, s=True, wo=True).to_dataframe(
-                    names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature',
-                    'gene_start','gene_stop','nothing','strand2','nothing2','attributes','gene_name','interval'])
-                self.gene_xlink_dicts[gene].drop(['name','chrom2','nothing','nothing2','interval','strand2','source',
-                    'feature','attributes'], axis=1, inplace=True)
+    def update_figures(self, gene_list, N, X, min_gene_count, current_figures):
+        # Subset the xlink BED file for each gene
+        if len(gene_list) > 0:
+            for gene in gene_list:
+                if not gene in self.gene_xlink_dicts:
+                    annot_gene = self.annot.loc[self.annot.gene_names==gene]
+                    annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
+                    self.gene_xlink_dicts[gene] = self.counts_bed.intersect(
+                        annot_gene, s=True, wo=True).to_dataframe(
+                        names=['chrom', 'start', 'end', 'name', 'score', 'strand',
+                        'chrom2', 'source', 'feature', 'gene_start', 'gene_stop',
+                        'nothing', 'strand2', 'nothing2', 'attributes', 'gene_name',
+                        'interval'])
+                    self.gene_xlink_dicts[gene].drop(['name', 'chrom2', 'nothing',
+                        'nothing2', 'interval', 'strand2', 'source', 'feature',
+                        'attributes'], axis=1, inplace=True)
+        if len(gene_list) == 0:
+            figs = [self.peak_call_and_plot(None, N, X, min_gene_count, current_figures)]
+        else:
+            figs = [self.peak_call_and_plot(gene, N, X, min_gene_count, current_figures)
+                for gene in gene_list]
+        return(figs, [])
 
+    def peak_call_and_plot(self, gene_name, N, X, min_gene_count, current_figures):
         # Perform the peak calling if the gene is valid
-        if len(gene) == 0 or self.gene_xlink_dicts[gene].shape[0] == 0:
+        if gene_name == None or self.gene_xlink_dicts[gene_name].shape[0] == 0:
             peaks, roll_mean_smoothed_scores, plotting_peaks = [[]]*3
         else:
             peaks, roll_mean_smoothed_scores, plotting_peaks = clip.getThePeaks(
-                self.gene_xlink_dicts[gene], N, X, min_gene_count, counter=1)
-
+                self.gene_xlink_dicts[gene_name], N, X, min_gene_count, counter=1)
         # Plot the rolling mean and thresholds
         fig = plotlyex.line(
             {
@@ -153,6 +163,15 @@ class DashApp:
                 "roll_mean_smoothed_scores": roll_mean_smoothed_scores
             },
             x="position", y="roll_mean_smoothed_scores"
+        )
+        fig.update_layout(
+            title={
+                'text': gene_name,
+                'y':0.9,
+                'x':0.5,
+                'xanchor': 'center',
+                'yanchor': 'top'
+            }
         )
         if len(roll_mean_smoothed_scores) > 0:
             mean_val = np.mean(roll_mean_smoothed_scores)
@@ -184,15 +203,22 @@ class DashApp:
                 },
                 selector={"mode": "markers"}
             )
+        current_relayout_data = None
+        if current_figures:
+            for graph in current_figures:
+                title = graph['props']['figure']['layout']['title']
+                if 'text' in title and title['text'] == gene_name:
+                    if 'relayoutData' in graph['props']:
+                        current_relayout_data = graph['props']['relayoutData']
         # Keep the same zoom level for the graph, if the user has changed that
-        if current_figure and 'xaxis.range[0]' in current_figure:
+        if current_relayout_data and 'xaxis.range[0]' in current_relayout_data:
             fig['layout']['xaxis']['range'] = [
-                current_figure['xaxis.range[0]'],
-                current_figure['xaxis.range[1]']
+                current_relayout_data['xaxis.range[0]'],
+                current_relayout_data['xaxis.range[1]']
             ]
-        if current_figure and 'yaxis.range[0]' in current_figure:
+        if current_relayout_data and 'yaxis.range[0]' in current_relayout_data:
             fig['layout']['yaxis']['range'] = [
-                current_figure['yaxis.range[0]'],
-                current_figure['yaxis.range[1]']
+                current_relayout_data['yaxis.range[0]'],
+                current_relayout_data['yaxis.range[1]']
             ]
-        return(fig, [])
+        return(dash_cc.Graph(id='gene-graph-' + str(gene_name), figure=fig))
