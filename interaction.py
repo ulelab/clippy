@@ -221,4 +221,7 @@ class DashApp:
                 current_relayout_data['yaxis.range[0]'],
                 current_relayout_data['yaxis.range[1]']
             ]
-        return(dash_cc.Graph(id='gene-graph-' + str(gene_name), figure=fig))
+        return(dash_cc.Graph(
+            id='gene-graph-' + str(gene_name),
+            figure=fig,
+            relayoutData=current_relayout_data))
