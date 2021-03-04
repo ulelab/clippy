@@ -4,8 +4,8 @@ import dash_html_components as dash_html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dash_bs
-import plotly.express as plotlyex
 import plotly.graph_objects as plotlygo
+from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 import pybedtools
@@ -177,17 +177,46 @@ class DashApp:
             peaks, roll_mean_smoothed_scores, plotting_peaks = clip.getThePeaks(
                 self.gene_xlink_dicts[gene_name], N, X, min_gene_count, counter=1)
         # Plot the rolling mean and thresholds
-        fig = plotlyex.line(
-            {
-                "position": list(range(len(roll_mean_smoothed_scores))),
-                "roll_mean_smoothed_scores": roll_mean_smoothed_scores
-            },
-            x="position", y="roll_mean_smoothed_scores"
-        )
+        fig = make_subplots(rows=2, row_heights=[0.9, 0.1], shared_xaxes=True, vertical_spacing=0.1)
+        fig.add_trace(plotlygo.Scatter(
+            x=list(range(len(roll_mean_smoothed_scores))),
+            y=roll_mean_smoothed_scores,
+            mode='lines',
+            showlegend=False),
+            row=1, col=1)
+        fig.update_xaxes(title_text='Position', row=1, col=1)
+        fig.update_yaxes(title_text='Rolling Mean Crosslink Count', row=1, col=1)
+        # TEST TRACE
+        fig.add_trace(plotlygo.Scatter(
+            x=list(range(len(roll_mean_smoothed_scores))),
+            y=roll_mean_smoothed_scores,
+            mode='lines',
+            showlegend=False),
+            row=2, col=1)
+        # END TEST TRACE
+        fig.update_xaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
+        fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
+        yaxis_range = fig.full_figure_for_development().layout.yaxis.range
+        fig.update_layout(xaxis_showticklabels=True)
         fig.update_layout(
+            margin=dict(l=10, r=10, t=20, b=10),
+            shapes=[dict(
+                type="rect",
+                xref="paper",
+                yref="y",
+                x0=0,
+                y0=yaxis_range[0],
+                x1=1,
+                y1=yaxis_range[1],
+                fillcolor="#e4e4e4",
+                opacity=1,
+                layer="below",
+                line_width=0,
+            )],
+            plot_bgcolor='rgba(0,0,0,0)',
             title={
                 'text': gene_name,
-                'y':0.9,
+                'y':0.98,
                 'x':0.5,
                 'xanchor': 'center',
                 'yanchor': 'top'
@@ -205,20 +234,23 @@ class DashApp:
                 x=list(range(len(roll_mean_smoothed_scores))),
                 y=[mean_val] * len(roll_mean_smoothed_scores),
                 mode='lines',
-                name='mean'))
+                name='mean'),
+                row=1, col=1)
             prominence_threshold_val = mean_val + (np.std(roll_mean_smoothed_scores)*X)
             fig.add_trace(plotlygo.Scatter(
                 x=list(range(len(roll_mean_smoothed_scores))),
                 y=[prominence_threshold_val] * len(roll_mean_smoothed_scores),
                 mode='lines',
-                name='prominence threshold'))
+                name='prominence threshold'),
+                row=1, col=1)
         # Add in peaks, if they have been called
         if len(plotting_peaks) > 0:
             fig.add_trace(plotlygo.Scatter(
                 x=plotting_peaks,
                 y=[roll_mean_smoothed_scores[idx] for idx in plotting_peaks],
                 mode='markers',
-                name='peaks'))
+                name='peaks'),
+                row=1, col=1)
             fig.update_traces(
                 marker={
                     "size": 12,
