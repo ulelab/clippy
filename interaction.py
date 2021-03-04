@@ -184,8 +184,11 @@ class DashApp:
             mode='lines',
             showlegend=False),
             row=1, col=1)
-        fig.update_xaxes(title_text='Position', row=1, col=1)
-        fig.update_yaxes(title_text='Rolling Mean Crosslink Count', row=1, col=1)
+        grid_colour = 'darkgrey'
+        fig.update_xaxes(title_text='Position', zerolinecolor=grid_colour,
+            gridcolor=grid_colour, row=1, col=1)
+        fig.update_yaxes(title_text='Rolling Mean Crosslink Count', zerolinecolor=grid_colour,
+            gridcolor=grid_colour, row=1, col=1)
         # TEST TRACE
         fig.add_trace(plotlygo.Scatter(
             x=list(range(len(roll_mean_smoothed_scores))),
@@ -196,23 +199,9 @@ class DashApp:
         # END TEST TRACE
         fig.update_xaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
-        yaxis_range = fig.full_figure_for_development().layout.yaxis.range
         fig.update_layout(xaxis_showticklabels=True)
         fig.update_layout(
             margin=dict(l=10, r=10, t=20, b=10),
-            shapes=[dict(
-                type="rect",
-                xref="paper",
-                yref="y",
-                x0=0,
-                y0=yaxis_range[0],
-                x1=1,
-                y1=yaxis_range[1],
-                fillcolor="#e4e4e4",
-                opacity=1,
-                layer="below",
-                line_width=0,
-            )],
             plot_bgcolor='rgba(0,0,0,0)',
             title={
                 'text': gene_name,
