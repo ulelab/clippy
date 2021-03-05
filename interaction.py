@@ -22,20 +22,28 @@ class DashApp:
         self.read_annot(annot)
         self.counts_bed = counts_bed
         self.gene_xlink_dicts = {}
+        self.gene_exon_dicts = {}
         self.app = dash.Dash(__name__, external_stylesheets=[dash_bs.themes.BOOTSTRAP])
 
     def read_annot(self, annot):
-        self.annot = pd.read_table(annot, header=None, names=["chrom", "source",
+        annot = pd.read_table(annot, header=None, names=["chrom", "source",
             "feature_type", "start", "end", "score", "strand", "frame", "attributes"])
-        self.annot = self.annot[self.annot.feature_type=="gene"]
-        self.gene_names = self.format_gene_list(self.annot.attributes.tolist())
-        self.annot['gene_names'] = self.gene_names
+        # Import gene information
+        print("Importing gene information...")
+        self.gene_annot = annot.loc[annot.feature_type=="gene", :].copy()
+        self.gene_names = self.format_gene_list(self.gene_annot.attributes.tolist())
+        self.gene_annot.loc[:, 'gene_id'] = self.format_gene_list(
+            self.gene_annot.attributes.tolist(), ['gene_id'])
+        self.gene_annot.loc[:,'gene_names'] = self.gene_names
+        # Import exon information
+        print("Importing exon information...")
+        self.exon_annot = annot.loc[annot.feature_type=="exon", :].copy()
 
-    def format_gene_list(self, raw_gene_list):
-        return([self.format_gene_name(raw_gene_name)
+    def format_gene_list(self, raw_gene_list, patterns=None):
+        return([self.format_gene_name(raw_gene_name, patterns)
             for raw_gene_name in raw_gene_list])
 
-    def format_gene_name(self, raw_gene_name):
+    def format_gene_name(self, raw_gene_name, patterns=None):
         p = re.compile('(\S*).+"(\S*)"')
         gtf_dict = {
             m.group(1): m.group(2)
@@ -44,8 +52,10 @@ class DashApp:
                 for attr in raw_gene_name.split(gtf_delimiter)
             ] if m
         }
+        if patterns == None:
+            patterns = gtf_attribute_filters
         return(name_delimiter.join(set([value for key, value in gtf_dict.items()
-            if any([filt in key for filt in gtf_attribute_filters])])))
+            if any([filt in key for filt in patterns])])))
 
     def setup_layout(self):
         self.app.layout = dash_bs.Container([
@@ -151,17 +161,22 @@ class DashApp:
         if len(gene_list) > 0:
             for gene in gene_list:
                 if not gene in self.gene_xlink_dicts:
-                    annot_gene = self.annot.loc[self.annot.gene_names==gene]
+                    annot_gene = self.gene_annot.loc[self.gene_annot.gene_names==gene]
                     annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
                     self.gene_xlink_dicts[gene] = self.counts_bed.intersect(
                         annot_gene, s=True, wo=True).to_dataframe(
                         names=['chrom', 'start', 'end', 'name', 'score', 'strand',
                         'chrom2', 'source', 'feature', 'gene_start', 'gene_stop',
-                        'nothing', 'strand2', 'nothing2', 'attributes', 'gene_name',
-                        'interval'])
+                        'nothing', 'strand2', 'nothing2', 'attributes', 'gene_id',
+                        'gene_name', 'interval'])
+                    self.gene_exon_dicts[gene] = self.exon_annot.loc[
+                        self.exon_annot.attributes.str.contains(
+                        self.gene_xlink_dicts[gene].gene_id[0]), :].copy()
+                    self.gene_exon_dicts[gene].loc[:,'transcript_names'] = self.format_gene_list(
+                        self.gene_exon_dicts[gene].attributes.tolist())
                     self.gene_xlink_dicts[gene].drop(['name', 'chrom2', 'nothing',
                         'nothing2', 'interval', 'strand2', 'source', 'feature',
-                        'attributes'], axis=1, inplace=True)
+                        'attributes', 'gene_id'], axis=1, inplace=True)
         if len(gene_list) == 0:
             figs = [self.peak_call_and_plot(None, N, X, min_gene_count, current_figures)]
         else:
@@ -177,7 +192,7 @@ class DashApp:
             peaks, roll_mean_smoothed_scores, plotting_peaks = clip.getThePeaks(
                 self.gene_xlink_dicts[gene_name], N, X, min_gene_count, counter=1)
         # Plot the rolling mean and thresholds
-        fig = make_subplots(rows=2, row_heights=[0.9, 0.1], shared_xaxes=True, vertical_spacing=0.1)
+        fig = make_subplots(rows=2, row_heights=[0.95, 0.05], shared_xaxes=True, vertical_spacing=0.12)
         fig.add_trace(plotlygo.Scatter(
             x=list(range(len(roll_mean_smoothed_scores))),
             y=roll_mean_smoothed_scores,
@@ -189,14 +204,26 @@ class DashApp:
             gridcolor=grid_colour, row=1, col=1)
         fig.update_yaxes(title_text='Rolling Mean Crosslink Count', zerolinecolor=grid_colour,
             gridcolor=grid_colour, row=1, col=1)
-        # TEST TRACE
-        fig.add_trace(plotlygo.Scatter(
-            x=list(range(len(roll_mean_smoothed_scores))),
-            y=roll_mean_smoothed_scores,
-            mode='lines',
-            showlegend=False),
-            row=2, col=1)
-        # END TEST TRACE
+        # Add gene models
+        if gene_name:
+            starts = self.gene_exon_dicts[gene_name]['start'].to_numpy()
+            ends = self.gene_exon_dicts[gene_name]['end'].to_numpy()
+            min_value = min(starts.min(), ends.min())
+            starts = starts - min_value
+            ends = ends - min_value
+            for idx in range(len(starts)):
+                fig.add_shape(
+                    x0=starts[idx], y0=0, x1=ends[idx], y1=1,
+                    line={'color': "#cacaca"},
+                    fillcolor="#cacaca",
+                    row=2, col=1)
+            max_value = max(starts.max(), ends.max())
+            fig.add_shape(type="line",
+                x0=0, y0=0.5, x1=max_value, y1=0.5,
+                line=dict(color="#cacaca", width=2),
+                row=2, col=1
+            )
+        # Remove axes from gene model figure
         fig.update_xaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
         fig.update_layout(xaxis_showticklabels=True)
