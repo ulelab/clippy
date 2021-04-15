@@ -16,3 +16,4 @@ dependencies:
   - pybedtools
   - scipy
   - matplotlib
+  - pytest

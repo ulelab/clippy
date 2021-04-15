@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import argparse
 import sys
 
+__version__ = "0.0.1"
+
 def main():
     parser = argparse.ArgumentParser(description='Call CLIP peaks.')
     optional = parser._action_groups.pop()
