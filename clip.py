@@ -11,6 +11,20 @@ import sys
 __version__ = "0.0.1"
 
 def main():
+    (counts_bed, annot, N, X, min_gene_count, outfile_name,
+        my_gene, distance, min_peak_count) = parse_arguments(sys.argv[1:])
+    counts_bed = pybedtools.BedTool(counts_bed)
+    if not(my_gene is None):
+        outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
+        peaks = getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
+        outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+"_broadPeaks.bed"
+        getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
+    else:
+        peaks = getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name)
+        outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
+        getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
+
+def parse_arguments(input_arguments):
     parser = argparse.ArgumentParser(description='Call CLIP peaks.')
     optional = parser._action_groups.pop()
     required = parser.add_argument_group('required arguments')
@@ -33,10 +47,16 @@ def main():
     optional.add_argument('-g',"--mygene", type=str, nargs='?',
                         help='gene name, limits analysis to single gene')
     parser._action_groups.append(optional)
-    args = parser.parse_args()
+    args = parser.parse_args(input_arguments)
     print(args)
-    outfile_name=args.outputprefix+"_rollmean" +str(args.windowsize,)+"_stdev"+str(args.adjust)+"_minGeneCount"+str(args.mingenecounts)+".bed"
-    return(args.inputbed, args.annot, args.windowsize, args.adjust, args.mingenecounts, outfile_name, args.mygene, args.distance, args.minpeakcounts)
+    outfile_name = ''.join([
+        args.outputprefix,
+        "_rollmean", str(args.windowsize),
+        "_stdev", str(args.adjust),
+        "_minGeneCount", str(args.mingenecounts),
+        ".bed"])
+    return(args.inputbed, args.annot, args.windowsize, args.adjust, args.mingenecounts,
+        outfile_name, args.mygene, args.distance, args.minpeakcounts)
 
 def getThePeaks(test, N, X, min_gene_count, counter):
     # Get the peaks for one gene
@@ -146,15 +166,5 @@ def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my
     return(pybedtools.BedTool.from_dataframe(peaks))
 
 if __name__ == "__main__":
-    counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene, distance, min_peak_count = main()
-    counts_bed = pybedtools.BedTool(counts_bed)
-    if not(my_gene is None):
-        outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
-        peaks = getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
-        outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+"_broadPeaks.bed"
-        getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
-    else:
-        peaks = getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name)
-        outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
-        getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
+    main()
 
