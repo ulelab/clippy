@@ -76,7 +76,7 @@ pythonw clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gff \
 To run the automated testing, use:
 
 ```
-pytest --cov
+pytest --cov=clip
 ```
 
 ### Concept
