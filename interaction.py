@@ -140,7 +140,7 @@ class DashApp:
     def run(self):
         self.setup_layout()
         self.setup_callbacks()
-        self.app.run_server(debug=True)
+        self.app.run_server(debug=True, host = '127.0.0.1')
 
     def update_gene_select(self, search_value, value):
         if not search_value:
