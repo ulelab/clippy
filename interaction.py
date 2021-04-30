@@ -11,6 +11,7 @@ import numpy as np
 import pybedtools
 import clip
 import re
+import scipy.signal
 
 top_x_search_results = 20
 name_delimiter = "; "
@@ -109,6 +110,15 @@ class DashApp:
                             value=1,
                             tooltip={'always_visible': True, 'placement': 'bottom'}
                         ),
+                        dash_html.Label('Relative height (broad peak threshold)'),
+                        dash_cc.Slider(
+                            id='rel_height',
+                            min=0,
+                            max=1,
+                            step=0.05,
+                            value=1,
+                            tooltip={'always_visible': True, 'placement': 'bottom'}
+                        ),
                         dash_html.Label('Minimum counts per gene to look for peaks'),
                         dash_cc.Slider(
                             id='min-count-slider',
@@ -130,6 +140,7 @@ class DashApp:
             Input('gene-select', 'value'),
             Input('n-slider', 'value'),
             Input('x-slider', 'value'),
+            Input('rel_height', 'value'),
             Input('min-count-slider', 'value'),
             State('gene-graphs', 'children'))(self.update_figures)
         self.app.callback(
@@ -156,7 +167,7 @@ class DashApp:
         ]
         return(return_options)
 
-    def update_figures(self, gene_list, N, X, min_gene_count, current_figures):
+    def update_figures(self, gene_list, N, X, rel_height, min_gene_count, current_figures):
         # Subset the xlink BED file for each gene
         if len(gene_list) > 0:
             for gene in gene_list:
@@ -178,19 +189,19 @@ class DashApp:
                         'nothing2', 'interval', 'strand2', 'source', 'feature',
                         'attributes', 'gene_id'], axis=1, inplace=True)
         if len(gene_list) == 0:
-            figs = [self.peak_call_and_plot(None, N, X, min_gene_count, current_figures)]
+            figs = [self.peak_call_and_plot(None, N, X, rel_height, min_gene_count, current_figures)]
         else:
-            figs = [self.peak_call_and_plot(gene, N, X, min_gene_count, current_figures)
+            figs = [self.peak_call_and_plot(gene, N, X, rel_height, min_gene_count, current_figures)
                 for gene in gene_list]
         return(figs, 'Idle')
 
-    def peak_call_and_plot(self, gene_name, N, X, min_gene_count, current_figures):
+    def peak_call_and_plot(self, gene_name, N, X, rel_height, min_gene_count, current_figures):
         # Perform the peak calling if the gene is valid
         if gene_name == None or self.gene_xlink_dicts[gene_name].shape[0] == 0:
-            peaks, roll_mean_smoothed_scores, plotting_peaks = [[]]*3
+            peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = [[]]*3 + [[[]]]
         else:
-            peaks, roll_mean_smoothed_scores, plotting_peaks = clip.getThePeaks(
-                self.gene_xlink_dicts[gene_name], N, X, min_gene_count, counter=1)
+            peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = clip.getThePeaks(
+                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count, counter=1)
         # Plot the rolling mean and thresholds
         fig = make_subplots(rows=2, row_heights=[0.95, 0.05], shared_xaxes=True, vertical_spacing=0.12)
         fig.add_trace(plotlygo.Scatter(
@@ -260,10 +271,10 @@ class DashApp:
                 name='prominence threshold'),
                 row=1, col=1)
         # Add in peaks, if they have been called
-        if len(plotting_peaks) > 0:
+        if len(peak_details[0]) > 0:
             fig.add_trace(plotlygo.Scatter(
-                x=plotting_peaks,
-                y=[roll_mean_smoothed_scores[idx] for idx in plotting_peaks],
+                x=peak_details[0],
+                y=[roll_mean_smoothed_scores[idx] for idx in peak_details[0]],
                 mode='markers',
                 name='peaks'),
                 row=1, col=1)
@@ -277,6 +288,29 @@ class DashApp:
                 },
                 selector={"mode": "markers"}
             )
+            fig.add_trace(plotlygo.Scatter(
+                x=np.array([
+                    [
+                        peak_details[1]['left_ips'][idx],
+                        peak_details[0][idx],
+                        peak_details[1]['right_ips'][idx],
+                        None
+                    ]
+                    for idx in range(len(peak_details[0]))
+                ]).flatten(),
+                y=np.array([
+                    [
+                        peak_details[1]['width_heights'][idx],
+                        peak_details[1]['peak_heights'][idx],
+                        peak_details[1]['width_heights'][idx],
+                        None
+                    ]
+                    for idx in range(len(peak_details[0]))
+                ]).flatten(),
+                mode='lines'),
+                row=1, col=1
+            )
+
         current_relayout_data = None
         if current_figures:
             for graph in current_figures:
