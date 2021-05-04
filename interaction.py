@@ -214,7 +214,7 @@ class DashApp:
         fig.update_xaxes(title_text='Position', zerolinecolor=grid_colour,
             gridcolor=grid_colour, row=1, col=1)
         fig.update_yaxes(title_text='Rolling Mean Crosslink Count', zerolinecolor=grid_colour,
-            gridcolor=grid_colour, row=1, col=1)
+            gridcolor=grid_colour, row=1, col=1, fixedrange=True)
         # Add gene models
         if gene_name:
             starts = self.gene_exon_dicts[gene_name]['start'].to_numpy()
