@@ -62,7 +62,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count, counter):
 
     scores = mer['score'].values
     if sum(scores) < min_gene_count:
-        return(pd.DataFrame({'A' : []}), "", "")
+        return(pd.DataFrame({'A' : []}), "", "", "")
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
     peaks=sig.find_peaks(roll_mean_smoothed_scores,
@@ -72,7 +72,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count, counter):
         rel_height=rel_height)
 
     if peaks[0].size == 0:
-        return(pd.DataFrame({'A' : []}), "", "")
+        return(pd.DataFrame({'A' : []}), "", "", "")
     peaks_in_gene = []
     broad_peaks_in_gene = []
     for i in range(0,len(peaks[0])):
