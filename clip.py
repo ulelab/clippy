@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 import scipy.signal as sig
 from scipy.ndimage.filters import uniform_filter1d
@@ -136,10 +138,15 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_nam
         pybedtools.BedTool.from_dataframe(broad_peaks)
     )
 
-def getBroadPeaks(crosslinks, broad_peaks, min_peak_count, outfile_name): # crosslinks and peaks are both bedtools 
+def getBroadPeaks(crosslinks, broad_peaks, min_peak_count, outfile_name): # crosslinks and peaks are both bedtools
+    # First, merge all broadpeaks
     final_peaks = broad_peaks \
-        .intersect(crosslinks, s=True, wo=True) \
         .sort() \
+        .merge(s=True, c=[5,6], o=["distinct"]*2) \
+    # Then, intersect with the crosslinks,
+    # merge back down (to sum up the crosslink counts), and filter
+    final_peaks = final_peaks \
+        .intersect(crosslinks, s=True, wo=True) \
         .merge(s=True, c=[11, 6], o=["sum","distinct"]) \
         .filter(lambda x: float(x.score) >= min_peak_count)
     final_peaks.saveas(outfile_name)
