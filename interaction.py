@@ -11,7 +11,6 @@ import numpy as np
 import pybedtools
 import clip
 import re
-import scipy.signal
 
 top_x_search_results = 20
 name_delimiter = "; "
@@ -116,7 +115,7 @@ class DashApp:
                             min=0,
                             max=1,
                             step=0.05,
-                            value=1,
+                            value=0.8,
                             tooltip={'always_visible': True, 'placement': 'bottom'}
                         ),
                         dash_html.Label('Minimum counts per gene to look for peaks'),
