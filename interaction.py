@@ -218,7 +218,7 @@ class DashApp:
             peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = clip.getThePeaks(
                 self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count, counter=1)
         # Plot the rolling mean and thresholds
-        fig = make_subplots(rows=2, row_heights=[0.95, 0.05], shared_xaxes=True, vertical_spacing=0.12)
+        fig = make_subplots(rows=3, row_heights=[0.90, 0.05, 0.05], shared_xaxes=True, vertical_spacing=0.12)
 
         # below is code for adding relative height (broad peak) trace
         fig.add_trace(plotlygo.Scatter(
@@ -254,7 +254,7 @@ class DashApp:
             row=1, col=1)
 
         grid_colour = 'darkgrey'
-        fig.update_xaxes(title_text='Position', zerolinecolor=grid_colour,
+        fig.update_xaxes(title={"text":"Position", "standoff": 0.05}, zerolinecolor=grid_colour,
             gridcolor=grid_colour, row=1, col=1)
         fig.update_yaxes(title_text='Rolling Mean Crosslink Count', zerolinecolor=grid_colour,
             gridcolor=grid_colour, row=1, col=1, fixedrange=True)
@@ -277,9 +277,17 @@ class DashApp:
                 line=dict(color="#cacaca", width=2),
                 row=2, col=1
             )
-        # Remove axes from gene model figure
-        fig.update_xaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
+        # add broad peaks as boxes
+        for idx in range(len(peak_details[0])):
+            fig.add_shape(x0=peak_details[1]['left_ips'][idx], y0=0, x1=peak_details[1]['right_ips'][idx], y1=1,
+                    line={'color': "darkorange"},
+                    fillcolor="darkorange",
+                    row=3, col=1)
+        # Remove axes from gene model figure and broad peaks track
+        fig.update_xaxes(showgrid=False, zeroline=False, row=2, col=1, title={"text":"Gene model", "standoff": 1})
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
+        fig.update_xaxes(showgrid=False, zeroline=False, row=3, col=1, showticklabels=False, title={"text":"Clippy broad peaks", "standoff": 0.05})
+        fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=3, col=1)
         fig.update_layout(xaxis_showticklabels=True)
         fig.update_layout(
             margin=dict(l=10, r=10, t=20, b=10),
