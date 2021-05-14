@@ -82,7 +82,7 @@ class DashApp:
                             ]
                         ),
                         dash_html.Label('Gene search'),
-                        dash_cc.Dropdown(
+                        dash_html.Div([ dash_cc.Dropdown(
                             options=[
                                 {'label': gene, 'value': gene}
                                 for gene in self.gene_names[:top_x_search_results]],
@@ -90,34 +90,58 @@ class DashApp:
                             value=[],
                             multi=True,
                             optionHeight=80
-                        ),
+                        )], style={'marginBottom': '1.5em','marginTop': '0.5em'}),
                         dash_html.Label('Rolling mean window size'),
-                        dash_cc.Slider(
-                            id='n-slider',
-                            min=1,
-                            max=200,
-                            step=1,
+                        dash_html.Div([ dash_cc.Dropdown(
+                            options=[
+                                {'label': num, 'value': num}
+                                for num in [1,5,10,15,20,50,100,200]],
+                            id="n-select",
                             value=50,
-                            tooltip={'always_visible': True, 'placement': 'bottom'}
-                        ),
+                            multi=False,
+                            optionHeight=20
+                        )], style={'marginBottom': '1.5em','marginTop': '0.5em'}),
                         dash_html.Label('Prominence adjustment'),
-                        dash_cc.Slider(
+                        dash_html.Div([ dash_cc.Slider(
                             id='x-slider',
                             min=0,
                             max=3,
                             step=0.1,
                             value=1,
+                            marks={
+                                0: '0',
+                                1: '1',
+                                2: '2',
+                                3: '3',
+                            },
                             tooltip={'always_visible': True, 'placement': 'bottom'}
-                        ),
+                        )], style={'marginBottom': '1.5em','marginTop': '0.5em'}),
+                        dash_html.Label('Relative height (broad peak threshold)'),
+                        dash_html.Div([ dash_cc.Slider(
+                            id='rel_height',
+                            min=0,
+                            max=1,
+                            step=0.05,
+                            value=0.8,
+                            marks={
+                                0: '0',
+                                1: '1',
+                            },
+                            tooltip={'always_visible': True, 'placement': 'bottom'}
+                        )], style={'marginBottom': '1.5em','marginTop': '0.5em'}),
                         dash_html.Label('Minimum counts per gene to look for peaks'),
-                        dash_cc.Slider(
+                        dash_html.Div([ dash_cc.Slider(
                             id='min-count-slider',
                             min=1,
                             max=200,
                             step=1,
                             value=5,
+                            marks={
+                                1: '1',
+                                200: '200',
+                            },
                             tooltip={'always_visible': True, 'placement': 'bottom'}
-                        )
+                        )], style={'marginBottom': '1.5em','marginTop': '0.5em'})
                     ], className='card-body')
                 ], className='card bg-default sticky-top'), lg=3)
             ])
@@ -128,8 +152,9 @@ class DashApp:
             Output('gene-graphs', 'children'),
             Output('graph-loading-indicator', 'children'),
             Input('gene-select', 'value'),
-            Input('n-slider', 'value'),
+            Input('n-select', 'value'),
             Input('x-slider', 'value'),
+            Input('rel_height', 'value'),
             Input('min-count-slider', 'value'),
             State('gene-graphs', 'children'))(self.update_figures)
         self.app.callback(
@@ -156,7 +181,7 @@ class DashApp:
         ]
         return(return_options)
 
-    def update_figures(self, gene_list, N, X, min_gene_count, current_figures):
+    def update_figures(self, gene_list, N, X, rel_height, min_gene_count, current_figures):
         # Subset the xlink BED file for each gene
         if len(gene_list) > 0:
             for gene in gene_list:
@@ -178,32 +203,60 @@ class DashApp:
                         'nothing2', 'interval', 'strand2', 'source', 'feature',
                         'attributes', 'gene_id'], axis=1, inplace=True)
         if len(gene_list) == 0:
-            figs = [self.peak_call_and_plot(None, N, X, min_gene_count, current_figures)]
+            figs = [self.peak_call_and_plot(None, N, X, rel_height, min_gene_count, current_figures)]
         else:
-            figs = [self.peak_call_and_plot(gene, N, X, min_gene_count, current_figures)
+            figs = [self.peak_call_and_plot(gene, N, X, rel_height, min_gene_count, current_figures)
                 for gene in gene_list]
         return(figs, 'Idle')
 
-    def peak_call_and_plot(self, gene_name, N, X, min_gene_count, current_figures):
+    def peak_call_and_plot(self, gene_name, N, X, rel_height, min_gene_count, current_figures):
         # Perform the peak calling if the gene is valid
         if gene_name == None or self.gene_xlink_dicts[gene_name].shape[0] == 0:
-            peaks, roll_mean_smoothed_scores, plotting_peaks = [[]]*3
+            peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = [[]]*3 + [[[]]]
         else:
-            peaks, roll_mean_smoothed_scores, plotting_peaks = clip.getThePeaks(
-                self.gene_xlink_dicts[gene_name], N, X, min_gene_count, counter=1)
+            peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = clip.getThePeaks(
+                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count, counter=1)
         # Plot the rolling mean and thresholds
-        fig = make_subplots(rows=2, row_heights=[0.95, 0.05], shared_xaxes=True, vertical_spacing=0.12)
+        fig = make_subplots(rows=3, row_heights=[0.90, 0.05, 0.05], shared_xaxes=True, vertical_spacing=0.12)
+
+        # below is code for adding relative height (broad peak) trace
+        fig.add_trace(plotlygo.Scatter(
+            x=np.array([
+                [
+                    peak_details[1]['left_ips'][idx],
+                    peak_details[0][idx],
+                    peak_details[1]['right_ips'][idx],
+                    None
+                ]
+                for idx in range(len(peak_details[0]))
+            ]).flatten(),
+            y=np.array([
+                [
+                    peak_details[1]['width_heights'][idx],
+                    peak_details[1]['peak_heights'][idx],
+                    peak_details[1]['width_heights'][idx],
+                    None
+                ]
+                for idx in range(len(peak_details[0]))
+            ]).flatten(),
+            mode='lines', name="Broad peak width",
+            line=dict(color='darkorange', width=1)),
+            row=1, col=1
+        )
+        # below is code for adding smoothed signal trace
         fig.add_trace(plotlygo.Scatter(
             x=list(range(len(roll_mean_smoothed_scores))),
             y=roll_mean_smoothed_scores,
             mode='lines',
-            showlegend=False),
+            showlegend=False,
+            line=dict(color='darkslateblue', width=2)),
             row=1, col=1)
+
         grid_colour = 'darkgrey'
-        fig.update_xaxes(title_text='Position', zerolinecolor=grid_colour,
+        fig.update_xaxes(title={"text":"Position", "standoff": 0.05}, zerolinecolor=grid_colour,
             gridcolor=grid_colour, row=1, col=1)
         fig.update_yaxes(title_text='Rolling Mean Crosslink Count', zerolinecolor=grid_colour,
-            gridcolor=grid_colour, row=1, col=1)
+            gridcolor=grid_colour, row=1, col=1, fixedrange=True)
         # Add gene models
         if gene_name:
             starts = self.gene_exon_dicts[gene_name]['start'].to_numpy()
@@ -223,9 +276,17 @@ class DashApp:
                 line=dict(color="#cacaca", width=2),
                 row=2, col=1
             )
-        # Remove axes from gene model figure
-        fig.update_xaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
+        # add broad peaks as boxes
+        for idx in range(len(peak_details[0])):
+            fig.add_shape(x0=peak_details[1]['left_ips'][idx], y0=0, x1=peak_details[1]['right_ips'][idx], y1=1,
+                    line={'color': "darkorange"},
+                    fillcolor="darkorange",
+                    row=3, col=1)
+        # Remove axes from gene model figure and broad peaks track
+        fig.update_xaxes(showgrid=False, zeroline=False, row=2, col=1, title={"text":"Gene model", "standoff": 1})
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
+        fig.update_xaxes(showgrid=False, zeroline=False, row=3, col=1, showticklabels=False, title={"text":"Clippy broad peaks", "standoff": 0.05})
+        fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=3, col=1)
         fig.update_layout(xaxis_showticklabels=True)
         fig.update_layout(
             margin=dict(l=10, r=10, t=20, b=10),
@@ -250,33 +311,37 @@ class DashApp:
                 x=list(range(len(roll_mean_smoothed_scores))),
                 y=[mean_val] * len(roll_mean_smoothed_scores),
                 mode='lines',
-                name='mean'),
+                name='Mean', 
+                line=dict(color='crimson', width=2)),
                 row=1, col=1)
             prominence_threshold_val = mean_val + (np.std(roll_mean_smoothed_scores)*X)
             fig.add_trace(plotlygo.Scatter(
                 x=list(range(len(roll_mean_smoothed_scores))),
                 y=[prominence_threshold_val] * len(roll_mean_smoothed_scores),
                 mode='lines',
-                name='prominence threshold'),
+                name='Prominence threshold',
+                line=dict(color='forestgreen', width=2)),
                 row=1, col=1)
         # Add in peaks, if they have been called
-        if len(plotting_peaks) > 0:
+        if len(peak_details[0]) > 0:
             fig.add_trace(plotlygo.Scatter(
-                x=plotting_peaks,
-                y=[roll_mean_smoothed_scores[idx] for idx in plotting_peaks],
+                x=peak_details[0],
+                y=[roll_mean_smoothed_scores[idx] for idx in peak_details[0]],
                 mode='markers',
-                name='peaks'),
+                name='Narrow peaks'),
                 row=1, col=1)
             fig.update_traces(
                 marker={
                     "size": 12,
+                    "color": "mediumvioletred",
                     "line": {
                         "width": 2,
-                        "color": "DarkSlateGrey"
+                        "color": "darkslateblue"
                     }
                 },
                 selector={"mode": "markers"}
             )
+
         current_relayout_data = None
         if current_figures:
             for graph in current_figures:
@@ -290,11 +355,12 @@ class DashApp:
                 current_relayout_data['xaxis.range[0]'],
                 current_relayout_data['xaxis.range[1]']
             ]
-        if current_relayout_data and 'yaxis.range[0]' in current_relayout_data:
-            fig['layout']['yaxis']['range'] = [
-                current_relayout_data['yaxis.range[0]'],
-                current_relayout_data['yaxis.range[1]']
-            ]
+        # I think fixing y axis provides more intuitive "genome browser" experience - CC
+        #if current_relayout_data and 'yaxis.range[0]' in current_relayout_data:
+        #    fig['layout']['yaxis']['range'] = [
+        #        current_relayout_data['yaxis.range[0]'],
+        #        current_relayout_data['yaxis.range[1]']
+        #    ]
         return(dash_cc.Graph(
             id='gene-graph-' + str(gene_name),
             figure=fig,
