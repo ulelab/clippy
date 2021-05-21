@@ -215,7 +215,7 @@ class DashApp:
             peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = [[]]*3 + [[[]]]
         else:
             peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = clip.getThePeaks(
-                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count, counter=1)
+                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count)
         # Plot the rolling mean and thresholds
         fig = make_subplots(rows=3, row_heights=[0.90, 0.05, 0.05], shared_xaxes=True, vertical_spacing=0.12)
         # below is code for adding relative height (broad peak) trace

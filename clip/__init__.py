@@ -8,19 +8,20 @@ import matplotlib.pyplot as plt
 import argparse
 import sys
 import clip.interaction
+from multiprocessing import Pool
 
 __version__ = "0.0.1"
 
 def main():
     (counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene,
-        min_peak_count, interactive) = parse_arguments(sys.argv[1:])
+        min_peak_count, threads, interactive) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
         app = clip.interaction.DashApp(counts_bed, annot)
         app.run()
     else:
         if my_gene is None:
-            peaks, broad_peaks = getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name)
+            peaks, broad_peaks = getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, outfile_name)
             outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
         else:
@@ -51,6 +52,8 @@ def parse_arguments(input_arguments):
                         help='min counts per broad peak [DEFAULT 5]')
     optional.add_argument('-g',"--mygene", type=str, nargs='?',
                         help='gene name, limits analysis to single gene')
+    optional.add_argument('-t', "--threads", type=int, default=1, nargs='?',
+                        help='number of threads to use')
     optional.add_argument('-int', "--interactive", action='store_true',
                         help='starts a Dash server to allow for interactive parameter tuning')
     parser._action_groups.append(optional)
@@ -63,9 +66,10 @@ def parse_arguments(input_arguments):
         "_minGeneCount", str(args.mingenecounts),
         ".bed"])
     return(args.inputbed, args.annot, args.windowsize, args.adjust, args.height_cutoff,
-        args.mingenecounts, outfile_name, args.mygene, args.minpeakcounts, args.interactive)
+        args.mingenecounts, outfile_name, args.mygene, args.minpeakcounts, args.threads,
+        args.interactive)
 
-def getThePeaks(test, N, X, rel_height, min_gene_count, counter):
+def getThePeaks(test, N, X, rel_height, min_gene_count):
     # Get the peaks for one gene
     # Now need to get an array of values
     chrom = test.chrom.iloc[0]
@@ -125,11 +129,9 @@ def getThePeaks(test, N, X, rel_height, min_gene_count, counter):
     broad_peaks_in_gene = pd.concat(broad_peaks_in_gene)
     broad_peaks_in_gene = broad_peaks_in_gene[["chrom","start","end","name","score","strand"]]
 
-    if counter % 1000 == 0:
-        print("Done for "+str(counter)+" genes")
     return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
-def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name):
+def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, outfile_name):
     pho92_iclip = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
@@ -137,20 +139,24 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_nam
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
 
-    sep_genes = [pd.DataFrame(y) for x, y in goverlaps.groupby('gene_name', as_index=False)]
+    arguments_list = [
+        (pd.DataFrame(y), N, X, rel_height, min_gene_count)
+        for x, y in goverlaps.groupby('gene_name', as_index=False)
+    ]
+
+    pool = Pool(threads)
+    output_list = pool.starmap(getThePeaks, arguments_list)
 
     all_peaks=[]
     broad_peaks=[]
-    counter =0
-    for i in range(len(sep_genes)):
-        df = sep_genes[i]
-        counter += 1
-        peaks_in_gene, broad_peaks_in_gene, rollingmean, peak_details = getThePeaks(df, N, X, rel_height, min_gene_count, counter)
+    for output in output_list:
+        peaks_in_gene, broad_peaks_in_gene, rollingmean, peak_details = output
         if peaks_in_gene.empty:
             continue
         else:
             all_peaks.append(peaks_in_gene)
             broad_peaks.append(broad_peaks_in_gene)
+
     all_peaks = pd.concat(all_peaks)
     all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
     broad_peaks = pd.concat(broad_peaks)
@@ -196,7 +202,7 @@ def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outf
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
 
-    peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = getThePeaks(goverlaps, N, X, rel_height, min_gene_count, 1)
+    peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = getThePeaks(goverlaps, N, X, rel_height, min_gene_count)
 
     if peaks.empty:
         sys.exit("No peaks found in this gene with the current parameters")
