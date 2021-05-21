@@ -155,9 +155,13 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_nam
     all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
     broad_peaks = pd.concat(broad_peaks)
 
+    all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks)\
+        .sort()
+    all_peaks_bed.saveas(outfile_name)
+
     print("Finished, written single nt peaks file.")
     return(
-        pybedtools.BedTool.from_dataframe(all_peaks),
+        all_peaks_bed,
         pybedtools.BedTool.from_dataframe(broad_peaks)
     )
 
