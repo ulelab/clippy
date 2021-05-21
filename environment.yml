@@ -20,3 +20,6 @@ dependencies:
   - pytest-cov
   - dash=1.20.0
   - dash-bootstrap-components=0.11.3
+  - bs4
+  - percy
+  - pytest-selenium
