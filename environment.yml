@@ -18,5 +18,5 @@ dependencies:
   - matplotlib
   - pytest
   - pytest-cov
-  - dash=1.19.0
+  - dash=1.20.0
   - dash-bootstrap-components=0.11.3

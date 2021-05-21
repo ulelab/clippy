@@ -12,22 +12,22 @@ import clip.interaction
 __version__ = "0.0.1"
 
 def main():
-    (counts_bed, annot, N, X, min_gene_count, outfile_name,
-        my_gene, distance, min_peak_count, interactive) = parse_arguments(sys.argv[1:])
+    (counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene,
+        min_peak_count, interactive) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
         app = clip.interaction.DashApp(counts_bed, annot)
         app.run()
     else:
         if my_gene is None:
-            peaks = getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name)
+            peaks, broad_peaks = getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name)
             outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
-            getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
+            getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
         else:
             outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
-            peaks = getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene)
+            peaks, broad_peaks = getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene)
             outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+"_broadPeaks.bed"
-            getBroadPeaks(counts_bed, peaks, distance, min_peak_count, outfile_name)
+            getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
 
 def parse_arguments(input_arguments):
     parser = argparse.ArgumentParser(description='Call CLIP peaks.')
@@ -43,12 +43,12 @@ def parse_arguments(input_arguments):
                         help='rolling mean window size [DEFAULT 50]')
     optional.add_argument('-x',"--adjust", type=float, default=1, nargs='?',
                         help='adjustment for prominence [DEFAULT 1]')
+    optional.add_argument('-hc',"--height_cutoff", type=float, default=0.8, nargs='?',
+                        help='proportion of prominence [DEFAULT 0.8]')
     optional.add_argument('-mg',"--mingenecounts", type=int, default=5, nargs='?',
                         help='min counts per gene to look for peaks [DEFAULT 5]')
     optional.add_argument('-mb',"--minpeakcounts", type=int, default=5, nargs='?',
                         help='min counts per broad peak [DEFAULT 5]')
-    optional.add_argument('-d',"--distance", type=int, default=10, nargs='?',
-                        help='distance to merge crosslinks around single nt peaks [DEFAULT 10]')
     optional.add_argument('-g',"--mygene", type=str, nargs='?',
                         help='gene name, limits analysis to single gene')
     optional.add_argument('-int', "--interactive", action='store_true',
@@ -62,10 +62,10 @@ def parse_arguments(input_arguments):
         "_stdev", str(args.adjust),
         "_minGeneCount", str(args.mingenecounts),
         ".bed"])
-    return(args.inputbed, args.annot, args.windowsize, args.adjust, args.mingenecounts,
-        outfile_name, args.mygene, args.distance, args.minpeakcounts, args.interactive)
+    return(args.inputbed, args.annot, args.windowsize, args.adjust, args.height_cutoff,
+        args.mingenecounts, outfile_name, args.mygene, args.minpeakcounts, args.interactive)
 
-def getThePeaks(test, N, X, min_gene_count, counter):
+def getThePeaks(test, N, X, rel_height, min_gene_count, counter):
     # Get the peaks for one gene
     # Now need to get an array of values
     chrom = test.chrom.iloc[0]
@@ -85,28 +85,51 @@ def getThePeaks(test, N, X, min_gene_count, counter):
 
     scores = mer['score'].values
     if sum(scores) < min_gene_count:
-        return(pd.DataFrame({'A' : []}), "", "")
+        return(pd.DataFrame({'A' : []}), "", "", "")
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
-    peaks=sig.find_peaks(roll_mean_smoothed_scores, height=np.mean(roll_mean_smoothed_scores), prominence=(np.std(roll_mean_smoothed_scores)*X))
+    peaks=sig.find_peaks(roll_mean_smoothed_scores,
+        height=np.mean(roll_mean_smoothed_scores),
+        prominence=(np.std(roll_mean_smoothed_scores)*X),
+        width=0.0,
+        rel_height=rel_height)
 
     if peaks[0].size == 0:
-        return(pd.DataFrame({'A' : []}), "", "")
+        return(pd.DataFrame({'A' : []}), "", "", "")
     peaks_in_gene = []
-
+    broad_peaks_in_gene = []
     for i in range(0,len(peaks[0])):
         pk = peaks[0][i]
-        final_peak = pd.DataFrame(data={"chrom":[chrom],"start":pk+start,"end":pk+start+1,"name":[genename],"score":["."],"strand":[strand]})
+        final_peak = pd.DataFrame(data={
+            "chrom":[chrom],
+            "start":pk+start,
+            "end":pk+start+1,
+            "name":[genename],
+            "score":["."],
+            "strand":[strand]
+        })
         peaks_in_gene.append(final_peak)
+        broad_peak = pd.DataFrame(data={
+            "chrom":  [chrom],
+            "start":  round(peaks[1]['left_ips'][i])+start,
+            "end":    round(peaks[1]['right_ips'][i])+start+1,
+            "name":   [genename],
+            "score":  ["."],
+            "strand": [strand]
+        })
+        broad_peaks_in_gene.append(broad_peak)
 
     peaks_in_gene = pd.concat(peaks_in_gene)
     peaks_in_gene = peaks_in_gene[["chrom","start","end","name","score","strand"]]
 
+    broad_peaks_in_gene = pd.concat(broad_peaks_in_gene)
+    broad_peaks_in_gene = broad_peaks_in_gene[["chrom","start","end","name","score","strand"]]
+
     if counter % 1000 == 0:
         print("Done for "+str(counter)+" genes")
-    return(peaks_in_gene, roll_mean_smoothed_scores, peaks[0])
+    return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
-def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
+def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name):
     pho92_iclip = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
@@ -117,28 +140,42 @@ def getAllPeaks(counts_bed, annot, N, X, min_gene_count, outfile_name):
     sep_genes = [pd.DataFrame(y) for x, y in goverlaps.groupby('gene_name', as_index=False)]
 
     all_peaks=[]
+    broad_peaks=[]
     counter =0
     for i in range(len(sep_genes)):
         df = sep_genes[i]
         counter += 1
-        peaks_in_gene, rollingmean, plottingpeaks = getThePeaks(df, N, X, min_gene_count, counter)
+        peaks_in_gene, broad_peaks_in_gene, rollingmean, peak_details = getThePeaks(df, N, X, rel_height, min_gene_count, counter)
         if peaks_in_gene.empty:
             continue
         else:
             all_peaks.append(peaks_in_gene)
+            broad_peaks.append(broad_peaks_in_gene)
     all_peaks = pd.concat(all_peaks)
     all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
-    return(pybedtools.BedTool.from_dataframe(all_peaks))
-    print("Finished, written single nt peaks file.")
+    broad_peaks = pd.concat(broad_peaks)
 
-def getBroadPeaks(crosslinks, peaks, distance, min_peak_count, outfile_name): # crosslinks and peaks are both bedtools 
-    merged_xlinks = crosslinks.merge(d=distance, c=[5,6], s=True, o=["sum","distinct"])
-    final_peaks = merged_xlinks.intersect(peaks, s=True, u=True).filter(lambda x: float(x.score) >= min_peak_count)
+    print("Finished, written single nt peaks file.")
+    return(
+        pybedtools.BedTool.from_dataframe(all_peaks),
+        pybedtools.BedTool.from_dataframe(broad_peaks)
+    )
+
+def getBroadPeaks(crosslinks, broad_peaks, min_peak_count, outfile_name): # crosslinks and peaks are both bedtools
+    # First, merge all broadpeaks
+    final_peaks = broad_peaks \
+        .sort() \
+        .merge(s=True, c=[5,6], o=["distinct"]*2) \
+    # Then, intersect with the crosslinks,
+    # merge back down (to sum up the crosslink counts), and filter
+    final_peaks = final_peaks \
+        .intersect(crosslinks, s=True, wo=True) \
+        .merge(s=True, c=[11, 6], o=["sum","distinct"]) \
+        .filter(lambda x: float(x.score) >= min_peak_count)
     final_peaks.saveas(outfile_name)
     print("Finished, written broad peaks file.")
 
-
-def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my_gene):
+def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene):
     pho92_iclip = counts_bed
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"])
     annot_gene = annot[annot.feature_type=="gene"]
@@ -155,7 +192,7 @@ def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
 
-    peaks, roll_mean_smoothed_scores, plotting_peaks = getThePeaks(goverlaps, N, X, min_gene_count, 1)
+    peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = getThePeaks(goverlaps, N, X, rel_height, min_gene_count, 1)
 
     if peaks.empty:
         sys.exit("No peaks found in this gene with the current parameters")
@@ -164,13 +201,16 @@ def getSingleGenePeaks(counts_bed, annot, N, X, min_gene_count, outfile_name, my
     peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
 
     # Make graph of gene
-    plt.plot(roll_mean_smoothed_scores, '-bD', markevery=plotting_peaks.tolist())
+    plt.plot(roll_mean_smoothed_scores, '-bD', markevery=peak_details[0].tolist())
     plt.ylabel('roll mean smoothed cDNAs')
     plt.axhline(y=np.mean(roll_mean_smoothed_scores),linewidth=4, color='r')
     plt.axhline(y=np.mean(roll_mean_smoothed_scores)+(np.std(roll_mean_smoothed_scores)*X),linewidth=1, color='g')
     plt.savefig(my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".png")
     print("Finished, written peak file and gene graph.")
-    return(pybedtools.BedTool.from_dataframe(peaks))
+    return(
+        pybedtools.BedTool.from_dataframe(peaks),
+        pybedtools.BedTool.from_dataframe(broad_peaks)
+    )
 
 if __name__ == "__main__":
     main()
