@@ -2,6 +2,7 @@ import clip
 import os
 import pybedtools
 import pandas as pd
+import cProfile
 
 def test_full_run(rootdir, monkeypatch, tmp_path):
     monkeypatch.setattr("sys.argv", ['clip.py',
@@ -33,5 +34,9 @@ def test_getThePeaks_profiling(rootdir):
         (pd.DataFrame(y), 50, 1, 0.8, 5)
         for x, y in goverlaps.groupby('gene_name', as_index=False)
     ]
+    pr = cProfile.Profile()
+    pr.enable()
     output = [clip.getThePeaks(*args) for args in arguments_list[:1000]]
+    pr.disable()
+    pr.dump_stats(os.path.join(rootdir, 'prof', 'get_the_peaks.out'))
     assert(len(output) == 1000)

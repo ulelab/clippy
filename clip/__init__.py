@@ -80,16 +80,12 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
     start = int(test.gene_start.iloc[0]-1)
     stop = int(test.gene_stop.iloc[0])
     all_vals = np.arange(start,stop,1)
-    score_default = np.zeros(stop-start)
-    default = pd.DataFrame({'start':all_vals, 'score':score_default})
-    real = test.drop(['chrom','end','strand','gene_start','gene_stop','gene_name'],axis=1)
-    mer = pd.concat([real, default]) \
-        .sort_values('score', ascending=False) \
-        .drop_duplicates('start') \
-        .sort_index() \
-        .sort_values(by=['start'])
-
-    scores = mer['score'].values
+    default = pd.DataFrame(
+        np.column_stack((np.arange(start,stop,1), np.zeros(stop-start))),
+        columns=['start', 'score']
+    )
+    default.iloc[default.reset_index().set_index('start').loc[test.start, 'index'].values, 1] = list(test.score)
+    scores = default['score'].values
     if sum(scores) < min_gene_count:
         return(None, None, None, None)
 
@@ -103,22 +99,24 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
     peak_num = len(peaks[0])
     if peak_num == 0:
         return(None, None, None, None)
-    peaks_in_gene = pd.DataFrame(data={
-        "chrom":  [chrom               for i in range(peak_num)],
-        "start":  [peaks[0][i]+start   for i in range(peak_num)],
-        "end":    [peaks[0][i]+start+1 for i in range(peak_num)],
-        "name":   [genename            for i in range(peak_num)],
-        "score":  ["."                 for i in range(peak_num)],
-        "strand": [strand              for i in range(peak_num)]
-    })
-    broad_peaks_in_gene = pd.DataFrame(data={
-        "chrom":  [chrom                                   for i in range(peak_num)],
-        "start":  [round(peaks[1]['left_ips'][i])+start    for i in range(peak_num)],
-        "end":    [round(peaks[1]['right_ips'][i])+start+1 for i in range(peak_num)],
-        "name":   [genename                                for i in range(peak_num)],
-        "score":  ["."                                     for i in range(peak_num)],
-        "strand": [strand                                  for i in range(peak_num)]
-    })
+    peaks_in_gene = pd.DataFrame(np.column_stack((
+            [chrom               for i in range(peak_num)],
+            [peaks[0][i]+start   for i in range(peak_num)],
+            [peaks[0][i]+start+1 for i in range(peak_num)],
+            [genename            for i in range(peak_num)],
+            ["."                 for i in range(peak_num)],
+            [strand              for i in range(peak_num)]
+        )), columns=['chrom', 'start', 'end', 'name', 'score', 'strand']
+    )
+    broad_peaks_in_gene = pd.DataFrame(np.column_stack((
+        [chrom                                   for i in range(peak_num)],
+        [round(peaks[1]['left_ips'][i])+start    for i in range(peak_num)],
+        [round(peaks[1]['right_ips'][i])+start+1 for i in range(peak_num)],
+        [genename                                for i in range(peak_num)],
+        ["."                                     for i in range(peak_num)],
+        [strand                                  for i in range(peak_num)]
+        )), columns=['chrom', 'start', 'end', 'name', 'score', 'strand']
+    )
     return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
 def calc_chunksize(n_workers, len_iterable, factor=4):

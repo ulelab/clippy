@@ -83,6 +83,7 @@ To run the profiling code:
 
 ```
 pytest -k profiling --profile-svg
+python -m gprof2dot -f pstats prof/get_the_peaks.out | dot -Tpdf -o prof/get_the_peaks.pdf
 ```
 
 ### Concept
