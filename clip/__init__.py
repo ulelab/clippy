@@ -82,7 +82,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
     score_default = np.zeros(stop-start)
     default = pd.DataFrame({'start':all_vals, 'score':score_default})
     real = test.drop(['chrom','end','strand','gene_start','gene_stop','gene_name'],axis=1)
-    mer = real.merge(default,how='outer') \
+    mer = pd.concat([real, default]) \
         .sort_values('score', ascending=False) \
         .drop_duplicates('start') \
         .sort_index() \
