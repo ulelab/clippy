@@ -76,7 +76,8 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
     chrom = test.chrom.iloc[0]
     genename = test.gene_name.iloc[0]
     strand = test.strand.iloc[0]
-    start = int(test.gene_start.iloc[0])
+    # BEDTools recognises GTF files for the intersection, but we have to take 1 away here
+    start = int(test.gene_start.iloc[0]-1)
     stop = int(test.gene_stop.iloc[0])
     all_vals = np.arange(start,stop,1)
     score_default = np.zeros(stop-start)
