@@ -101,35 +101,24 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
 
     if peaks[0].size == 0:
         return(pd.DataFrame({'A' : []}), "", "", "")
-    peaks_in_gene = []
-    broad_peaks_in_gene = []
-    for i in range(0,len(peaks[0])):
-        pk = peaks[0][i]
-        final_peak = pd.DataFrame(data={
-            "chrom":[chrom],
-            "start":pk+start,
-            "end":pk+start+1,
-            "name":[genename],
-            "score":["."],
-            "strand":[strand]
-        })
-        peaks_in_gene.append(final_peak)
-        broad_peak = pd.DataFrame(data={
-            "chrom":  [chrom],
-            "start":  round(peaks[1]['left_ips'][i])+start,
-            "end":    round(peaks[1]['right_ips'][i])+start+1,
-            "name":   [genename],
-            "score":  ["."],
-            "strand": [strand]
-        })
-        broad_peaks_in_gene.append(broad_peak)
 
-    peaks_in_gene = pd.concat(peaks_in_gene)
-    peaks_in_gene = peaks_in_gene[["chrom","start","end","name","score","strand"]]
-
-    broad_peaks_in_gene = pd.concat(broad_peaks_in_gene)
-    broad_peaks_in_gene = broad_peaks_in_gene[["chrom","start","end","name","score","strand"]]
-
+    peak_num = len(peaks[0])
+    peaks_in_gene = pd.DataFrame(data={
+        "chrom":  [chrom               for i in range(peak_num)],
+        "start":  [peaks[0][i]+start   for i in range(peak_num)],
+        "end":    [peaks[0][i]+start+1 for i in range(peak_num)],
+        "name":   [genename            for i in range(peak_num)],
+        "score":  ["."                 for i in range(peak_num)],
+        "strand": [strand              for i in range(peak_num)]
+    })
+    broad_peaks_in_gene = pd.DataFrame(data={
+        "chrom":  [chrom                                   for i in range(peak_num)],
+        "start":  [round(peaks[1]['left_ips'][i])+start    for i in range(peak_num)],
+        "end":    [round(peaks[1]['right_ips'][i])+start+1 for i in range(peak_num)],
+        "name":   [genename                                for i in range(peak_num)],
+        "score":  ["."                                     for i in range(peak_num)],
+        "strand": [strand                                  for i in range(peak_num)]
+    })
     return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
 def calc_chunksize(n_workers, len_iterable, factor=4):
