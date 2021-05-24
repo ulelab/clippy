@@ -90,7 +90,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
 
     scores = mer['score'].values
     if sum(scores) < min_gene_count:
-        return(pd.DataFrame({'A' : []}), "", "", "")
+        return(None, None, None, None)
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
     peaks=sig.find_peaks(roll_mean_smoothed_scores,
@@ -99,10 +99,9 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
         width=0.0,
         rel_height=rel_height)
 
-    if peaks[0].size == 0:
-        return(pd.DataFrame({'A' : []}), "", "", "")
-
     peak_num = len(peaks[0])
+    if peak_num == 0:
+        return(None, None, None, None)
     peaks_in_gene = pd.DataFrame(data={
         "chrom":  [chrom               for i in range(peak_num)],
         "start":  [peaks[0][i]+start   for i in range(peak_num)],
@@ -151,9 +150,7 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ou
     broad_peaks=[]
     for output in output_list:
         peaks_in_gene, broad_peaks_in_gene, rollingmean, peak_details = output
-        if peaks_in_gene.empty:
-            continue
-        else:
+        if isinstance(peaks_in_gene, pd.core.frame.DataFrame):
             all_peaks.append(peaks_in_gene)
             broad_peaks.append(broad_peaks_in_gene)
 
@@ -204,7 +201,7 @@ def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outf
 
     peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = getThePeaks(goverlaps, N, X, rel_height, min_gene_count)
 
-    if peaks.empty:
+    if not isinstance(peaks, pd.core.frame.DataFrame):
         sys.exit("No peaks found in this gene with the current parameters")
 
     outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
