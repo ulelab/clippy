@@ -11,7 +11,7 @@ import clip.interaction
 from multiprocessing import Pool
 
 __version__ = "0.0.1"
-max_chunksize = 100
+max_chunksize = 400
 
 def main():
     (counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene,
@@ -79,7 +79,6 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
     # BEDTools recognises GTF files for the intersection, but we have to take 1 away here
     start = int(test.gene_start.iloc[0]-1)
     stop = int(test.gene_stop.iloc[0])
-    all_vals = np.arange(start,stop,1)
     default = pd.DataFrame(
         np.column_stack((np.arange(start,stop,1), np.zeros(stop-start))),
         columns=['start', 'score']
