@@ -11,6 +11,7 @@ import clip.interaction
 from multiprocessing import Pool
 
 __version__ = "0.0.1"
+max_chunksize = 100
 
 def main():
     (counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene,
@@ -131,6 +132,15 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
 
     return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
+def calc_chunksize(n_workers, len_iterable, factor=4):
+    """Calculate chunksize argument for Pool-methods.
+    #https://stackoverflow.com/questions/53751050/python-multiprocessing-understanding-logic-behind-chunksize
+    """
+    chunksize, extra = divmod(len_iterable, n_workers * factor)
+    if extra:
+        chunksize += 1
+    return(chunksize)
+
 def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, outfile_name):
     pho92_iclip = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
@@ -145,7 +155,8 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ou
     ]
 
     pool = Pool(threads)
-    output_list = pool.starmap(getThePeaks, arguments_list)
+    chunk_size = min(calc_chunksize(threads, len(arguments_list)), max_chunksize)
+    output_list = pool.starmap(getThePeaks, arguments_list, chunk_size)
 
     all_peaks=[]
     broad_peaks=[]
