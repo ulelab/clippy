@@ -73,12 +73,10 @@ def parse_arguments(input_arguments):
 def getThePeaks(test, N, X, rel_height, min_gene_count):
     # Get the peaks for one gene
     # Now need to get an array of values
-    chrom = test.chrom.iloc[0]
-    genename = test.gene_name.iloc[0]
-    strand = test.strand.iloc[0]
+    chrom, xlink_start, xlink_end, score, strand, start, stop, gene_name = test.iloc[0]
     # BEDTools recognises GTF files for the intersection, but we have to take 1 away here
-    start = int(test.gene_start.iloc[0]-1)
-    stop = int(test.gene_stop.iloc[0])
+    start = int(start-1)
+    stop = int(stop)
     default = pd.DataFrame(
         np.column_stack((np.arange(start,stop,1), np.zeros(stop-start))),
         columns=['start', 'score']
@@ -102,7 +100,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
             [chrom               for i in range(peak_num)],
             [peaks[0][i]+start   for i in range(peak_num)],
             [peaks[0][i]+start+1 for i in range(peak_num)],
-            [genename            for i in range(peak_num)],
+            [gene_name           for i in range(peak_num)],
             ["."                 for i in range(peak_num)],
             [strand              for i in range(peak_num)]
         )), columns=['chrom', 'start', 'end', 'name', 'score', 'strand']
@@ -111,7 +109,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
         [chrom                                   for i in range(peak_num)],
         [round(peaks[1]['left_ips'][i])+start    for i in range(peak_num)],
         [round(peaks[1]['right_ips'][i])+start+1 for i in range(peak_num)],
-        [genename                                for i in range(peak_num)],
+        [gene_name                               for i in range(peak_num)],
         ["."                                     for i in range(peak_num)],
         [strand                                  for i in range(peak_num)]
         )), columns=['chrom', 'start', 'end', 'name', 'score', 'strand']
