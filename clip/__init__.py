@@ -98,7 +98,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
     if peak_num == 0:
         return(None, None, None, None)
 
-    peaks_in_gene = pd.DataFrame(np.array([
+    peaks_in_gene = np.array([
         (
             chrom,
             peaks[0][i]+start,
@@ -107,9 +107,9 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
             ".",
             strand
         ) for i in range(peak_num)
-    ]), columns=['chrom', 'start', 'end', 'name', 'score', 'strand'])
+    ])
 
-    broad_peaks_in_gene = pd.DataFrame(np.array([
+    broad_peaks_in_gene = np.array([
         (
             chrom,
             round(peaks[1]['left_ips'][i])+start,
@@ -118,7 +118,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
             ".",
             strand
         ) for i in range(peak_num)
-    ]), columns=['chrom', 'start', 'end', 'name', 'score', 'strand'])
+    ])
 
     return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
@@ -152,13 +152,13 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ou
     broad_peaks=[]
     for output in output_list:
         peaks_in_gene, broad_peaks_in_gene, rollingmean, peak_details = output
-        if isinstance(peaks_in_gene, pd.core.frame.DataFrame):
+        if isinstance(peaks_in_gene, np.ndarray):
             all_peaks.append(peaks_in_gene)
             broad_peaks.append(broad_peaks_in_gene)
 
-    all_peaks = pd.concat(all_peaks)
+    all_peaks = pd.DataFrame(np.concatenate(all_peaks))
     all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
-    broad_peaks = pd.concat(broad_peaks)
+    broad_peaks = pd.DataFrame(np.concatenate(broad_peaks))
 
     all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks)\
         .sort()
@@ -203,11 +203,11 @@ def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outf
 
     peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = getThePeaks(goverlaps, N, X, rel_height, min_gene_count)
 
-    if not isinstance(peaks, pd.core.frame.DataFrame):
+    if not isinstance(peaks, np.ndarray):
         sys.exit("No peaks found in this gene with the current parameters")
 
     outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
-    peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
+    pd.DataFrame(peaks).to_csv(outfile_name,sep="\t",header=False,index=False)
 
     # Make graph of gene
     plt.plot(roll_mean_smoothed_scores, '-bD', markevery=peak_details[0].tolist())
@@ -217,8 +217,8 @@ def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outf
     plt.savefig(my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".png")
     print("Finished, written peak file and gene graph.")
     return(
-        pybedtools.BedTool.from_dataframe(peaks),
-        pybedtools.BedTool.from_dataframe(broad_peaks)
+        pybedtools.BedTool.from_dataframe(pd.DataFrame(peaks)),
+        pybedtools.BedTool.from_dataframe(pd.DataFrame(broad_peaks))
     )
 
 if __name__ == "__main__":
