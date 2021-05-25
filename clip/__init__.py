@@ -77,12 +77,13 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
     # BEDTools recognises GTF files for the intersection, but we have to take 1 away here
     start = int(start-1)
     stop = int(stop)
-    default = pd.DataFrame(
-        np.column_stack((np.arange(start,stop,1), np.zeros(stop-start))),
-        columns=['start', 'score']
-    )
-    default.iloc[default.reset_index().set_index('start').loc[test.start, 'index'].values, 1] = list(test.score)
-    scores = default['score'].values
+    xlink_coverage = {pos: 0 for pos in range(start, stop)}
+    start_list = list(test.start)
+    score_list = list(test.score)
+    for idx in range(len(start_list)):
+        xlink_coverage[start_list[idx]] += score_list[idx]
+    scores = np.array(list(xlink_coverage.values()))
+
     if sum(scores) < min_gene_count:
         return(None, None, None, None)
 
