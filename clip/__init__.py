@@ -97,24 +97,29 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
     peak_num = len(peaks[0])
     if peak_num == 0:
         return(None, None, None, None)
-    peaks_in_gene = pd.DataFrame(np.column_stack((
-            [chrom               for i in range(peak_num)],
-            [peaks[0][i]+start   for i in range(peak_num)],
-            [peaks[0][i]+start+1 for i in range(peak_num)],
-            [gene_name           for i in range(peak_num)],
-            ["."                 for i in range(peak_num)],
-            [strand              for i in range(peak_num)]
-        )), columns=['chrom', 'start', 'end', 'name', 'score', 'strand']
-    )
-    broad_peaks_in_gene = pd.DataFrame(np.column_stack((
-        [chrom                                   for i in range(peak_num)],
-        [round(peaks[1]['left_ips'][i])+start    for i in range(peak_num)],
-        [round(peaks[1]['right_ips'][i])+start+1 for i in range(peak_num)],
-        [gene_name                               for i in range(peak_num)],
-        ["."                                     for i in range(peak_num)],
-        [strand                                  for i in range(peak_num)]
-        )), columns=['chrom', 'start', 'end', 'name', 'score', 'strand']
-    )
+
+    peaks_in_gene = pd.DataFrame(np.array([
+        (
+            chrom,
+            peaks[0][i]+start,
+            peaks[0][i]+start+1,
+            gene_name,
+            ".",
+            strand
+        ) for i in range(peak_num)
+    ]), columns=['chrom', 'start', 'end', 'name', 'score', 'strand'])
+
+    broad_peaks_in_gene = pd.DataFrame(np.array([
+        (
+            chrom,
+            round(peaks[1]['left_ips'][i])+start,
+            round(peaks[1]['right_ips'][i])+start+1,
+            gene_name,
+            ".",
+            strand
+        ) for i in range(peak_num)
+    ]), columns=['chrom', 'start', 'end', 'name', 'score', 'strand'])
+
     return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
 def calc_chunksize(n_workers, len_iterable, factor=4):
