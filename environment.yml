@@ -7,7 +7,7 @@ channels:
   - bcbio
   - defaults
 dependencies:
-  - python=3.7
+  - python=3.8
   - bedtools=2.26.0
   - numpy
   - numpy-base

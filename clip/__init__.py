@@ -54,7 +54,7 @@ def parse_arguments(input_arguments):
                         help='gene name, limits analysis to single gene')
     optional.add_argument('-t', "--threads", type=int, default=1, nargs='?',
                         help='number of threads to use')
-    optional.add_argument('-cf', "--chunksize_factor", type=int, default=4, nargs='?',
+    optional.add_argument('-cf', "--chunksize_factor", type=int, default=16, nargs='?',
                         help='A factor used to control the number of jobs given to a thread at a time. A larger number reduces the number of jobs per chunk. Only increase if you experience crashes [DEFAULT 4]')
     optional.add_argument('-int', "--interactive", action='store_true',
                         help='starts a Dash server to allow for interactive parameter tuning')
@@ -147,7 +147,7 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ch
 
     pool = Pool(threads)
     chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
-    output_list = pool.starmap(getThePeaks, arguments_list, chunk_size)
+    output_list = pool.starmap_async(getThePeaks, arguments_list, chunk_size).get()
 
     all_peaks=[]
     broad_peaks=[]
