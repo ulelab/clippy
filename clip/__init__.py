@@ -132,6 +132,9 @@ def calc_chunksize(n_workers, len_iterable, factor):
         chunksize += 1
     return(chunksize)
 
+def get_the_peaks_single_arg(input_tuple):
+    return(getThePeaks(*input_tuple))
+
 def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name):
     pool = Pool(threads)
     pho92_iclip = pybedtools.BedTool(counts_bed)
@@ -147,7 +150,7 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ch
     ]
 
     chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
-    output_list = pool.starmap_async(getThePeaks, arguments_list, chunk_size).get()
+    output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
 
     all_peaks=[]
     broad_peaks=[]
