@@ -11,18 +11,17 @@ import clip.interaction
 from multiprocessing import Pool
 
 __version__ = "0.0.1"
-max_chunksize = 400
 
 def main():
     (counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene,
-        min_peak_count, threads, interactive) = parse_arguments(sys.argv[1:])
+        min_peak_count, threads, chunksize_factor, interactive) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
         app = clip.interaction.DashApp(counts_bed, annot)
         app.run()
     else:
         if my_gene is None:
-            peaks, broad_peaks = getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, outfile_name)
+            peaks, broad_peaks = getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name)
             outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
         else:
@@ -55,6 +54,8 @@ def parse_arguments(input_arguments):
                         help='gene name, limits analysis to single gene')
     optional.add_argument('-t', "--threads", type=int, default=1, nargs='?',
                         help='number of threads to use')
+    optional.add_argument('-cf', "--chunksize_factor", type=int, default=4, nargs='?',
+                        help='A factor used to control the number of jobs given to a thread at a time. A larger number reduces the number of jobs per chunk. Only increase if you experience crashes [DEFAULT 4]')
     optional.add_argument('-int', "--interactive", action='store_true',
                         help='starts a Dash server to allow for interactive parameter tuning')
     parser._action_groups.append(optional)
@@ -68,7 +69,7 @@ def parse_arguments(input_arguments):
         ".bed"])
     return(args.inputbed, args.annot, args.windowsize, args.adjust, args.height_cutoff,
         args.mingenecounts, outfile_name, args.mygene, args.minpeakcounts, args.threads,
-        args.interactive)
+        args.chunksize_factor, args.interactive)
 
 def getThePeaks(test, N, X, rel_height, min_gene_count):
     # Get the peaks for one gene
@@ -122,7 +123,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
 
     return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
-def calc_chunksize(n_workers, len_iterable, factor=4):
+def calc_chunksize(n_workers, len_iterable, factor):
     """Calculate chunksize argument for Pool-methods.
     #https://stackoverflow.com/questions/53751050/python-multiprocessing-understanding-logic-behind-chunksize
     """
@@ -131,7 +132,7 @@ def calc_chunksize(n_workers, len_iterable, factor=4):
         chunksize += 1
     return(chunksize)
 
-def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, outfile_name):
+def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name):
     pho92_iclip = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
@@ -145,7 +146,7 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ou
     ]
 
     pool = Pool(threads)
-    chunk_size = min(calc_chunksize(threads, len(arguments_list)), max_chunksize)
+    chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
     output_list = pool.starmap(getThePeaks, arguments_list, chunk_size)
 
     all_peaks=[]
