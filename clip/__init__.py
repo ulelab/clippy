@@ -133,6 +133,7 @@ def calc_chunksize(n_workers, len_iterable, factor):
     return(chunksize)
 
 def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name):
+    pool = Pool(threads)
     pho92_iclip = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
@@ -145,7 +146,6 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ch
         for x, y in goverlaps.groupby('gene_name', as_index=False)
     ]
 
-    pool = Pool(threads)
     chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
     output_list = pool.starmap_async(getThePeaks, arguments_list, chunk_size).get()
 
