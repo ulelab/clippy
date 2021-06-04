@@ -9,19 +9,20 @@ import argparse
 import sys
 import clip.interaction
 from multiprocessing import Pool
+import re
 
 __version__ = "0.0.1"
 
 def main():
     (counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene,
-        min_peak_count, threads, chunksize_factor, interactive) = parse_arguments(sys.argv[1:])
+        min_peak_count, threads, chunksize_factor, interactive, exclusion_search) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
         app = clip.interaction.DashApp(counts_bed, annot)
         app.run()
     else:
         if my_gene is None:
-            peaks, broad_peaks = getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name)
+            peaks, broad_peaks = getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name, exclusion_search)
             outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
         else:
@@ -58,6 +59,8 @@ def parse_arguments(input_arguments):
                         help='A factor used to control the number of jobs given to a thread at a time. A larger number reduces the number of jobs per chunk. Only increase if you experience crashes [DEFAULT 4]')
     optional.add_argument('-int', "--interactive", action='store_true',
                         help='starts a Dash server to allow for interactive parameter tuning')
+    optional.add_argument('-ex',"--exclusion_search", type=str, nargs='?',
+                        help='A list of GTF features to set different height thresholds on in the comma-separated format <gtf_key>-<search_pattern>-<threshold>')
     parser._action_groups.append(optional)
     args = parser.parse_args(input_arguments)
     print(args)
@@ -69,7 +72,7 @@ def parse_arguments(input_arguments):
         ".bed"])
     return(args.inputbed, args.annot, args.windowsize, args.adjust, args.height_cutoff,
         args.mingenecounts, outfile_name, args.mygene, args.minpeakcounts, args.threads,
-        args.chunksize_factor, args.interactive)
+        args.chunksize_factor, args.interactive, args.exclusion_search)
 
 def getThePeaks(test, N, X, rel_height, min_gene_count):
     # Get the peaks for one gene
@@ -135,12 +138,48 @@ def calc_chunksize(n_workers, len_iterable, factor):
 def get_the_peaks_single_arg(input_tuple):
     return(getThePeaks(*input_tuple))
 
-def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name):
+def get_gtf_attr_dict(attr_str):
+    p = re.compile('(\S*).+"(\S*)"')
+    return({
+        m.group(1): m.group(2)
+        for m in [
+            p.search(attr.strip())
+            for attr in attr_str.split(";")
+        ] if m
+    })
+
+def parse_exclusion_search(exclusion_search_str):
+    output = []
+    searches = exclusion_search_str.split(",")
+    for search in searches:
+        split_search = search.split("-")
+        output.append({
+            "key": split_search[0],
+            "regex": "-".join(split_search[1:(len(split_search)-1)]),
+            "mean": float(split_search[-1])
+        })
+    return(output)
+
+def test_exclusion(attr_str, exclusion_list):
+    gtf_dict = get_gtf_attr_dict(attr_str)
+    for exclusion in exclusion_list:
+        if exclusion["key"] in gtf_dict:
+            if re.search(exclusion["regex"], gtf_dict[exclusion["key"]]):
+                return(True)
+    return(False)
+
+def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name, exclusion_search):
     if threads > 1:
         pool = Pool(threads)
     pho92_iclip = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
+
+    if exclusion_search:
+        exclusions = parse_exclusion_search(exclusion_search)
+        annot_bool = [test_exclusion(attr_str, exclusions)
+            for attr_str in annot_gene["attributes"]]
+
     ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
