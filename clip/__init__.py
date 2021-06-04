@@ -136,7 +136,8 @@ def get_the_peaks_single_arg(input_tuple):
     return(getThePeaks(*input_tuple))
 
 def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name):
-    pool = Pool(threads)
+    if threads > 1:
+        pool = Pool(threads)
     pho92_iclip = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
@@ -144,13 +145,16 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ch
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
 
-    arguments_list = [
-        (pd.DataFrame(y), N, X, rel_height, min_gene_count)
-        for x, y in goverlaps.groupby('gene_name', as_index=False)
-    ]
-
-    chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
-    output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
+    if threads > 1:
+        arguments_list = [
+            (pd.DataFrame(y), N, X, rel_height, min_gene_count)
+            for x, y in goverlaps.groupby('gene_name', as_index=False)
+        ]
+        chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
+        output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
+    else:
+        output_list = [getThePeaks(pd.DataFrame(y), N, X, rel_height, min_gene_count)
+            for x, y in goverlaps.groupby('gene_name', as_index=False)]
 
     all_peaks=[]
     broad_peaks=[]
