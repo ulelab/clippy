@@ -54,7 +54,7 @@ def parse_arguments(input_arguments):
                         help='gene name, limits analysis to single gene')
     optional.add_argument('-t', "--threads", type=int, default=1, nargs='?',
                         help='number of threads to use')
-    optional.add_argument('-cf', "--chunksize_factor", type=int, default=4, nargs='?',
+    optional.add_argument('-cf', "--chunksize_factor", type=int, default=16, nargs='?',
                         help='A factor used to control the number of jobs given to a thread at a time. A larger number reduces the number of jobs per chunk. Only increase if you experience crashes [DEFAULT 4]')
     optional.add_argument('-int', "--interactive", action='store_true',
                         help='starts a Dash server to allow for interactive parameter tuning')
@@ -74,24 +74,19 @@ def parse_arguments(input_arguments):
 def getThePeaks(test, N, X, rel_height, min_gene_count):
     # Get the peaks for one gene
     # Now need to get an array of values
-    chrom = test.chrom.iloc[0]
-    genename = test.gene_name.iloc[0]
-    strand = test.strand.iloc[0]
-    start = int(test.gene_start.iloc[0])
-    stop = int(test.gene_stop.iloc[0])
-    all_vals = np.arange(start,stop,1)
-    score_default = np.zeros(stop-start)
-    default = pd.DataFrame({'start':all_vals, 'score':score_default})
-    real = test.drop(['chrom','end','strand','gene_start','gene_stop','gene_name'],axis=1)
-    mer = real.merge(default,how='outer') \
-        .sort_values('score', ascending=False) \
-        .drop_duplicates('start') \
-        .sort_index() \
-        .sort_values(by=['start'])
+    chrom, xlink_start, xlink_end, score, strand, start, stop, gene_name = test.iloc[0]
+    # BEDTools recognises GTF files for the intersection, but we have to take 1 away here
+    start = int(start-1)
+    stop = int(stop)
+    xlink_coverage = {pos: 0 for pos in range(start, stop)}
+    start_list = list(test.start)
+    score_list = list(test.score)
+    for idx in range(len(start_list)):
+        xlink_coverage[start_list[idx]] += score_list[idx]
+    scores = np.array(list(xlink_coverage.values()))
 
-    scores = mer['score'].values
     if sum(scores) < min_gene_count:
-        return(pd.DataFrame({'A' : []}), "", "", "")
+        return(None, None, None, None)
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
     peaks=sig.find_peaks(roll_mean_smoothed_scores,
@@ -100,36 +95,31 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
         width=0.0,
         rel_height=rel_height)
 
-    if peaks[0].size == 0:
-        return(pd.DataFrame({'A' : []}), "", "", "")
-    peaks_in_gene = []
-    broad_peaks_in_gene = []
-    for i in range(0,len(peaks[0])):
-        pk = peaks[0][i]
-        final_peak = pd.DataFrame(data={
-            "chrom":[chrom],
-            "start":pk+start,
-            "end":pk+start+1,
-            "name":[genename],
-            "score":["."],
-            "strand":[strand]
-        })
-        peaks_in_gene.append(final_peak)
-        broad_peak = pd.DataFrame(data={
-            "chrom":  [chrom],
-            "start":  round(peaks[1]['left_ips'][i])+start,
-            "end":    round(peaks[1]['right_ips'][i])+start+1,
-            "name":   [genename],
-            "score":  ["."],
-            "strand": [strand]
-        })
-        broad_peaks_in_gene.append(broad_peak)
+    peak_num = len(peaks[0])
+    if peak_num == 0:
+        return(None, None, None, None)
 
-    peaks_in_gene = pd.concat(peaks_in_gene)
-    peaks_in_gene = peaks_in_gene[["chrom","start","end","name","score","strand"]]
+    peaks_in_gene = np.array([
+        (
+            chrom,
+            peaks[0][i]+start,
+            peaks[0][i]+start+1,
+            gene_name,
+            ".",
+            strand
+        ) for i in range(peak_num)
+    ])
 
-    broad_peaks_in_gene = pd.concat(broad_peaks_in_gene)
-    broad_peaks_in_gene = broad_peaks_in_gene[["chrom","start","end","name","score","strand"]]
+    broad_peaks_in_gene = np.array([
+        (
+            chrom,
+            round(peaks[1]['left_ips'][i])+start,
+            round(peaks[1]['right_ips'][i])+start+1,
+            gene_name,
+            ".",
+            strand
+        ) for i in range(peak_num)
+    ])
 
     return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
@@ -142,7 +132,12 @@ def calc_chunksize(n_workers, len_iterable, factor):
         chunksize += 1
     return(chunksize)
 
+def get_the_peaks_single_arg(input_tuple):
+    return(getThePeaks(*input_tuple))
+
 def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name):
+    if threads > 1:
+        pool = Pool(threads)
     pho92_iclip = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
@@ -150,28 +145,28 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ch
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
 
-    arguments_list = [
-        (pd.DataFrame(y), N, X, rel_height, min_gene_count)
-        for x, y in goverlaps.groupby('gene_name', as_index=False)
-    ]
-
-    pool = Pool(threads)
-    chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
-    output_list = pool.starmap(getThePeaks, arguments_list, chunk_size)
+    if threads > 1:
+        arguments_list = [
+            (pd.DataFrame(y), N, X, rel_height, min_gene_count)
+            for x, y in goverlaps.groupby('gene_name', as_index=False)
+        ]
+        chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
+        output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
+    else:
+        output_list = [getThePeaks(pd.DataFrame(y), N, X, rel_height, min_gene_count)
+            for x, y in goverlaps.groupby('gene_name', as_index=False)]
 
     all_peaks=[]
     broad_peaks=[]
     for output in output_list:
         peaks_in_gene, broad_peaks_in_gene, rollingmean, peak_details = output
-        if peaks_in_gene.empty:
-            continue
-        else:
+        if isinstance(peaks_in_gene, np.ndarray):
             all_peaks.append(peaks_in_gene)
             broad_peaks.append(broad_peaks_in_gene)
 
-    all_peaks = pd.concat(all_peaks)
+    all_peaks = pd.DataFrame(np.concatenate(all_peaks))
     all_peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
-    broad_peaks = pd.concat(broad_peaks)
+    broad_peaks = pd.DataFrame(np.concatenate(broad_peaks))
 
     all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks)\
         .sort()
@@ -216,11 +211,11 @@ def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outf
 
     peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = getThePeaks(goverlaps, N, X, rel_height, min_gene_count)
 
-    if peaks.empty:
+    if not isinstance(peaks, np.ndarray):
         sys.exit("No peaks found in this gene with the current parameters")
 
     outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
-    peaks.to_csv(outfile_name,sep="\t",header=False,index=False)
+    pd.DataFrame(peaks).to_csv(outfile_name,sep="\t",header=False,index=False)
 
     # Make graph of gene
     plt.plot(roll_mean_smoothed_scores, '-bD', markevery=peak_details[0].tolist())
@@ -230,8 +225,8 @@ def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outf
     plt.savefig(my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".png")
     print("Finished, written peak file and gene graph.")
     return(
-        pybedtools.BedTool.from_dataframe(peaks),
-        pybedtools.BedTool.from_dataframe(broad_peaks)
+        pybedtools.BedTool.from_dataframe(pd.DataFrame(peaks)),
+        pybedtools.BedTool.from_dataframe(pd.DataFrame(broad_peaks))
     )
 
 if __name__ == "__main__":
