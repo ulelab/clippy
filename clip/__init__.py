@@ -4,6 +4,8 @@ from scipy.ndimage.filters import uniform_filter1d
 from scipy import stats
 import pybedtools
 import pandas as pd
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import argparse
 import sys
