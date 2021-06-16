@@ -141,6 +141,11 @@ class DashApp:
                                 200: '200',
                             },
                             tooltip={'always_visible': True, 'placement': 'bottom'}
+                        )], style={'marginBottom': '1.5em','marginTop': '0.5em'}),
+                        dash_html.Label('Exclusions'),
+                        dash_html.Div([ dash_cc.Textarea(
+                            id="exclusion-input",
+                            placeholder="e.g. gene_type-scaRNA-100",
                         )], style={'marginBottom': '1.5em','marginTop': '0.5em'})
                     ], className='card-body')
                 ], className='card bg-default sticky-top'), lg=3)
@@ -156,6 +161,7 @@ class DashApp:
             Input('x-slider', 'value'),
             Input('rel_height', 'value'),
             Input('min-count-slider', 'value'),
+            Input('exclusion-input', 'value'),
             State('gene-graphs', 'children'))(self.update_figures)
         self.app.callback(
             Output('gene-select', 'options'),
@@ -181,7 +187,7 @@ class DashApp:
         ]
         return(return_options)
 
-    def update_figures(self, gene_list, N, X, rel_height, min_gene_count, current_figures):
+    def update_figures(self, gene_list, N, X, rel_height, min_gene_count, exclusion_search, current_figures):
         # Subset the xlink BED file for each gene
         if len(gene_list) > 0:
             for gene in gene_list:
@@ -203,19 +209,22 @@ class DashApp:
                         'nothing2', 'interval', 'strand2', 'source', 'feature',
                         'attributes', 'gene_id'], axis=1, inplace=True)
         if len(gene_list) == 0:
-            figs = [self.peak_call_and_plot(None, N, X, rel_height, min_gene_count, current_figures)]
+            figs = [self.peak_call_and_plot(None, N, X, rel_height, min_gene_count, exclusion_search, current_figures)]
         else:
-            figs = [self.peak_call_and_plot(gene, N, X, rel_height, min_gene_count, current_figures)
+            figs = [self.peak_call_and_plot(gene, N, X, rel_height, min_gene_count, exclusion_search, current_figures)
                 for gene in gene_list]
         return(figs, 'Idle')
 
-    def peak_call_and_plot(self, gene_name, N, X, rel_height, min_gene_count, current_figures):
+    def peak_call_and_plot(self, gene_name, N, X, rel_height, min_gene_count, exclusion_search, current_figures):
         # Perform the peak calling if the gene is valid
         if gene_name == None or self.gene_xlink_dicts[gene_name].shape[0] == 0:
-            peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = [[]]*3 + [[[]]]
+            peaks, broad_peaks, roll_mean_smoothed_scores, peak_details, heights = [[]]*3 + [[[]]] + [[]]
         else:
-            peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = clip.getThePeaks(
-                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count)
+            annot_exclusions = clip.return_exclusions(exclusion_search, self.gene_annot.loc[:,:"attributes"])
+            peaks, broad_peaks, roll_mean_smoothed_scores, peak_details, heights = clip.getThePeaks(
+                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count, annot_exclusions)
+            if not isinstance(peaks, np.ndarray):
+                peaks, broad_peaks, roll_mean_smoothed_scores, peak_details, heights = [[]]*3 + [[[]]] + [[]]
         # Plot the rolling mean and thresholds
         fig = make_subplots(rows=3, row_heights=[0.90, 0.05, 0.05], shared_xaxes=True, vertical_spacing=0.12)
         # below is code for adding relative height (broad peak) trace
@@ -254,7 +263,7 @@ class DashApp:
         fig.update_xaxes(title={"text":"Position", "standoff": 0.05}, zerolinecolor=grid_colour,
             gridcolor=grid_colour, row=1, col=1)
         fig.update_yaxes(title_text='Rolling Mean Crosslink Count', zerolinecolor=grid_colour,
-            gridcolor=grid_colour, row=1, col=1, fixedrange=True)
+            gridcolor=grid_colour, row=1, col=1)
         # Add gene models
         if gene_name:
             starts = self.gene_exon_dicts[gene_name]['start'].to_numpy()
@@ -333,7 +342,7 @@ class DashApp:
             mean_val = np.mean(roll_mean_smoothed_scores)
             fig.add_trace(plotlygo.Scatter(
                 x=list(range(len(roll_mean_smoothed_scores))),
-                y=[mean_val] * len(roll_mean_smoothed_scores),
+                y=heights,
                 mode='lines',
                 name='Mean', 
                 line=dict(color='crimson', width=2)),
@@ -380,11 +389,11 @@ class DashApp:
                 current_relayout_data['xaxis.range[1]']
             ]
         # I think fixing y axis provides more intuitive "genome browser" experience - CC
-        #if current_relayout_data and 'yaxis.range[0]' in current_relayout_data:
-        #    fig['layout']['yaxis']['range'] = [
-        #        current_relayout_data['yaxis.range[0]'],
-        #        current_relayout_data['yaxis.range[1]']
-        #    ]
+        if current_relayout_data and 'yaxis.range[0]' in current_relayout_data:
+           fig['layout']['yaxis']['range'] = [
+               current_relayout_data['yaxis.range[0]'],
+               current_relayout_data['yaxis.range[1]']
+           ]
         return(dash_cc.Graph(
             id='gene-graph-' + str(gene_name),
             figure=fig,

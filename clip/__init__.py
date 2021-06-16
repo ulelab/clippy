@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.matrixlib.defmatrix import _from_string
 import scipy.signal as sig
 from scipy.ndimage.filters import uniform_filter1d
 from scipy import stats
@@ -74,7 +75,7 @@ def parse_arguments(input_arguments):
         args.mingenecounts, outfile_name, args.mygene, args.minpeakcounts, args.threads,
         args.chunksize_factor, args.interactive, args.exclusion_search)
 
-def getThePeaks(test, N, X, rel_height, min_gene_count):
+def getThePeaks(test, N, X, rel_height, min_gene_count, exclusions):
     # Get the peaks for one gene
     # Now need to get an array of values
     chrom, xlink_start, xlink_end, score, strand, start, stop, gene_name = test.iloc[0]
@@ -89,18 +90,45 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
     scores = np.array(list(xlink_coverage.values()))
 
     if sum(scores) < min_gene_count:
-        return(None, None, None, None)
+        return(None, None, None, None, None)
+
+    # height_overrides
+    threshold_overrides = pybedtools.BedTool.from_dataframe(exclusions) \
+        .intersect(
+            pybedtools.BedTool("\t".join([chrom, str(start), str(stop), 'gene', '.', strand]), from_string=True),
+            s=True
+        ).to_dataframe()
+    height_overrides = [[False, 0.0]] * (stop - start)
+
+    for index, row in threshold_overrides.iterrows():
+        for pos in range(row["start"]-1, row["end"]):
+            zero_pos = pos-start
+            # Higher thresholds are prioritised if there are overlapping features
+            height_overrides[zero_pos] = [True,
+                max(float(row["score"]), height_overrides[zero_pos][1])]
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
+
+    non_overridden_roll_mean_smoothed_scores = roll_mean_smoothed_scores[
+        np.logical_not([i[0] for i in height_overrides])]
+    if len(non_overridden_roll_mean_smoothed_scores) > 0:
+        default_threshold = np.mean(non_overridden_roll_mean_smoothed_scores)
+
+    for idx in range(len(height_overrides)):
+        if not height_overrides[idx][0]:
+            height_overrides[idx][1] = default_threshold
+
+    heights = np.array([i[1] for i in height_overrides])
+
     peaks=sig.find_peaks(roll_mean_smoothed_scores,
-        height=np.mean(roll_mean_smoothed_scores),
+        height=heights,
         prominence=(np.std(roll_mean_smoothed_scores)*X),
         width=0.0,
         rel_height=rel_height)
 
     peak_num = len(peaks[0])
     if peak_num == 0:
-        return(None, None, None, None)
+        return(None, None, None, None, None)
 
     peaks_in_gene = np.array([
         (
@@ -124,7 +152,7 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
         ) for i in range(peak_num)
     ])
 
-    return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
+    return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks, heights)
 
 def calc_chunksize(n_workers, len_iterable, factor):
     """Calculate chunksize argument for Pool-methods.
@@ -161,12 +189,24 @@ def parse_exclusion_search(exclusion_search_str):
     return(output)
 
 def test_exclusion(attr_str, exclusion_list):
+    mean_list = []
     gtf_dict = get_gtf_attr_dict(attr_str)
     for exclusion in exclusion_list:
         if exclusion["key"] in gtf_dict:
             if re.search(exclusion["regex"], gtf_dict[exclusion["key"]]):
-                return(True)
-    return(False)
+                mean_list.append(exclusion["mean"])
+    if len(mean_list) > 0:
+        return((True, max(mean_list)))
+    else:
+        return((False, 0.0))
+
+def return_exclusions(exclusion_search, annot_gene):
+    exclusions = parse_exclusion_search(exclusion_search)
+    exclusion_matches = [test_exclusion(attr_str, exclusions)
+        for attr_str in annot_gene["attributes"]]
+    annot_exclusions = pd.DataFrame(annot_gene.iloc[[i[0] for i in exclusion_matches]])
+    annot_exclusions["score"] = [i[1] for i in exclusion_matches if i[0]]
+    return(annot_exclusions)
 
 def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name, exclusion_search):
     if threads > 1:
@@ -175,10 +215,9 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ch
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
 
+    # annot_exclusions = None
     if exclusion_search:
-        exclusions = parse_exclusion_search(exclusion_search)
-        annot_bool = [test_exclusion(attr_str, exclusions)
-            for attr_str in annot_gene["attributes"]]
+        annot_exclusions = return_exclusions(exclusion_search, annot_gene)
 
     ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
@@ -186,19 +225,19 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ch
 
     if threads > 1:
         arguments_list = [
-            (pd.DataFrame(y), N, X, rel_height, min_gene_count)
+            (pd.DataFrame(y), N, X, rel_height, min_gene_count, annot_exclusions)
             for x, y in goverlaps.groupby('gene_name', as_index=False)
         ]
         chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
         output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
     else:
-        output_list = [getThePeaks(pd.DataFrame(y), N, X, rel_height, min_gene_count)
+        output_list = [getThePeaks(pd.DataFrame(y), N, X, rel_height, min_gene_count, annot_exclusions)
             for x, y in goverlaps.groupby('gene_name', as_index=False)]
 
     all_peaks=[]
     broad_peaks=[]
     for output in output_list:
-        peaks_in_gene, broad_peaks_in_gene, rollingmean, peak_details = output
+        peaks_in_gene, broad_peaks_in_gene, rollingmean, peak_details, heights = output
         if isinstance(peaks_in_gene, np.ndarray):
             all_peaks.append(peaks_in_gene)
             broad_peaks.append(broad_peaks_in_gene)
