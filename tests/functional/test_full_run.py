@@ -43,7 +43,7 @@ def test_getThePeaks_profiling(rootdir):
             'feature', 'gene_start', 'gene_stop', 'nothing', 'strand2', 'nothing2', 'gene_name', 'interval']) \
         .drop(['name', 'chrom2', 'nothing', 'nothing2', 'interval', 'strand2', 'source', 'feature'], axis=1)
     arguments_list = [
-        (pd.DataFrame(y), 50, 1, 0.8, 5)
+        (pd.DataFrame(y), 50, 1, 0.8, 5, None)
         for x, y in goverlaps.groupby('gene_name', as_index=False)
     ]
     pr = cProfile.Profile()

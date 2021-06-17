@@ -220,7 +220,9 @@ class DashApp:
         if gene_name == None or self.gene_xlink_dicts[gene_name].shape[0] == 0:
             peaks, broad_peaks, roll_mean_smoothed_scores, peak_details, heights = [[]]*3 + [[[]]] + [[]]
         else:
-            annot_exclusions = clip.return_exclusions(exclusion_search, self.gene_annot.loc[:,:"attributes"])
+            annot_exclusions = None
+            if exclusion_search:
+                annot_exclusions = clip.return_exclusions(exclusion_search, self.gene_annot.loc[:,:"attributes"])
             peaks, broad_peaks, roll_mean_smoothed_scores, peak_details, heights = clip.getThePeaks(
                 self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count, annot_exclusions)
             if not isinstance(peaks, np.ndarray):

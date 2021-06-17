@@ -61,7 +61,7 @@ def parse_arguments(input_arguments):
     optional.add_argument('-int', "--interactive", action='store_true',
                         help='starts a Dash server to allow for interactive parameter tuning')
     optional.add_argument('-ex',"--exclusion_search", type=str, nargs='?',
-                        help='A list of GTF features to set different height thresholds on in the comma-separated format <gtf_key>-<search_pattern>-<threshold>')
+                        help='A list of GTF features to set different height thresholds on in the comma-separated format <gtf_key>-<search_pattern>')
     parser._action_groups.append(optional)
     args = parser.parse_args(input_arguments)
     print(args)
@@ -93,19 +93,20 @@ def getThePeaks(test, N, X, rel_height, min_gene_count, exclusions):
         return(None, None, None, None, None)
 
     # height_overrides
-    threshold_overrides = pybedtools.BedTool.from_dataframe(exclusions) \
-        .intersect(
-            pybedtools.BedTool("\t".join([chrom, str(start), str(stop), 'gene', '.', strand]), from_string=True),
-            s=True
-        ).to_dataframe()
     height_overrides = [[False, 0.0]] * (stop - start)
 
-    for index, row in threshold_overrides.iterrows():
-        for pos in range(row["start"]-1, row["end"]):
-            zero_pos = pos-start
-            # Higher thresholds are prioritised if there are overlapping features
-            height_overrides[zero_pos] = [True,
-                max(float(row["score"]), height_overrides[zero_pos][1])]
+    if exclusions:
+        threshold_overrides = pybedtools.BedTool.from_dataframe(exclusions) \
+            .intersect(
+                pybedtools.BedTool("\t".join([chrom, str(start), str(stop), 'gene', '.', strand]), from_string=True),
+                s=True
+            ).to_dataframe()
+        for index, row in threshold_overrides.iterrows():
+            for pos in range(row["start"]-1, row["end"]):
+                zero_pos = pos-start
+                # Higher thresholds are prioritised if there are overlapping features
+                height_overrides[zero_pos] = [True,
+                    max(float(row["score"]), height_overrides[zero_pos][1])]
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
 
@@ -215,7 +216,7 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ch
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
 
-    # annot_exclusions = None
+    annot_exclusions = None
     if exclusion_search:
         annot_exclusions = return_exclusions(exclusion_search, annot_gene)
 
