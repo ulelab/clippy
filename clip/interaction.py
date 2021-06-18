@@ -61,7 +61,7 @@ class DashApp:
         ]
 
     def format_gene_name(self, raw_gene_name, patterns=None):
-        p = re.compile('(\S*).+"(\S*)"')
+        p = re.compile(r'(\S*).+"(\S*)"')
         gtf_dict = {
             m.group(1): m.group(2)
             for m in [

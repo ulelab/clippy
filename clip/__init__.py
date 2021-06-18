@@ -338,7 +338,7 @@ def get_the_peaks_single_arg(input_tuple):
 
 
 def get_gtf_attr_dict(attr_str):
-    p = re.compile('(\S*).+"(\S*)"')
+    p = re.compile(r'(\S*).+"(\S*)"')
     return {
         m.group(1): m.group(2)
         for m in [p.search(attr.strip()) for attr in attr_str.split(";")]
