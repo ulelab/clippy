@@ -426,7 +426,7 @@ class DashApp:
                 roll_mean_smoothed_scores,
                 peak_details,
                 heights,
-            ) = clip.getThePeaks(
+            ) = clip.single_gene_get_peaks(
                 self.gene_xlink_dicts[gene_name],
                 N,
                 X,

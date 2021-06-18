@@ -227,7 +227,9 @@ def parse_arguments(input_arguments):
     )
 
 
-def getThePeaks(test, N, X, rel_height, min_gene_count, annot_exon, alt_features):
+def single_gene_get_peaks(
+    test, N, X, rel_height, min_gene_count, annot_exon, alt_features
+):
     # Get the peaks for one gene
     # Now need to get an array of values
     chrom, xlink_start, xlink_end, score, strand, start, stop, gene_name = test.iloc[0]
@@ -244,43 +246,63 @@ def getThePeaks(test, N, X, rel_height, min_gene_count, annot_exon, alt_features
     if sum(scores) < min_gene_count:
         return (None, None, None, None, None)
 
-    # height_overrides
-    height_overrides = [[False, 0.0]] * (stop - start)
+    feature_names = set(["intron", "exon"])
+
+    mean_sets = [set(["intron"]) for i in range(stop - start)]
+
+    for index, row in annot_exon.iterrows():
+        for pos in range(row["start"] - 1, row["end"]):
+            zero_pos = pos - start
+            if "intron" in mean_sets[zero_pos]:
+                mean_sets[zero_pos].remove("intron")
+            mean_sets[zero_pos].add("exon")
 
     if alt_features:
-        threshold_overrides = (
-            pybedtools.BedTool.from_dataframe(alt_features)
-            .intersect(
-                pybedtools.BedTool(
-                    "\t".join([chrom, str(start), str(stop), "gene", ".", strand]),
-                    from_string=True,
-                ),
-                s=True,
+        for feature_name, alt_features_annot in alt_features.items():
+            threshold_overrides = (
+                pybedtools.BedTool.from_dataframe(alt_features_annot)
+                .intersect(
+                    pybedtools.BedTool(
+                        "\t".join([chrom, str(start), str(stop), "gene", ".", strand]),
+                        from_string=True,
+                    ),
+                    s=True,
+                )
+                .to_dataframe()
             )
-            .to_dataframe()
-        )
-        for index, row in threshold_overrides.iterrows():
-            for pos in range(row["start"] - 1, row["end"]):
-                zero_pos = pos - start
-                # Higher thresholds are prioritised if there are overlapping features
-                height_overrides[zero_pos] = [
-                    True,
-                    max(float(row["score"]), height_overrides[zero_pos][1]),
-                ]
+            for index, row in threshold_overrides.iterrows():
+                for pos in range(row["start"] - 1, row["end"]):
+                    zero_pos = pos - start
+                    for name in ["intron", "exon"]:
+                        if name in mean_sets[zero_pos]:
+                            mean_sets[zero_pos].remove(name)
+                    mean_sets[zero_pos].add(feature_name)
+                    feature_names.add(feature_name)
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
 
-    non_overridden_roll_mean_smoothed_scores = roll_mean_smoothed_scores[
-        np.logical_not([i[0] for i in height_overrides])
-    ]
-    if len(non_overridden_roll_mean_smoothed_scores) > 0:
-        default_threshold = np.mean(non_overridden_roll_mean_smoothed_scores)
+    mean_dict = {
+        feature_name: np.mean(
+            roll_mean_smoothed_scores[
+                np.logical_not([feature_name in i for i in mean_sets])
+            ]
+        )
+        for feature_name in feature_names
+    }
+    print(mean_dict)
+    # non_overridden_roll_mean_smoothed_scores = roll_mean_smoothed_scores[
+    #     np.logical_not([i[0] for i in height_overrides])
+    # ]
+    # if len(non_overridden_roll_mean_smoothed_scores) > 0:
+    #     default_threshold = np.mean(non_overridden_roll_mean_smoothed_scores)
 
-    for idx in range(len(height_overrides)):
-        if not height_overrides[idx][0]:
-            height_overrides[idx][1] = default_threshold
+    # for idx in range(len(height_overrides)):
+    #     if not height_overrides[idx][0]:
+    #         height_overrides[idx][1] = default_threshold
 
-    heights = np.array([i[1] for i in height_overrides])
+    # heights = np.array([i[1] for i in height_overrides])
+
+    heights = np.mean(roll_mean_smoothed_scores)
 
     peaks = sig.find_peaks(
         roll_mean_smoothed_scores,
@@ -342,7 +364,7 @@ def calc_chunksize(n_workers, len_iterable, factor):
 
 
 def get_the_peaks_single_arg(input_tuple):
-    return getThePeaks(*input_tuple)
+    return single_gene_get_peaks(*input_tuple)
 
 
 def get_gtf_attr_dict(attr_str):
@@ -503,7 +525,7 @@ def getAllPeaks(
         output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
     else:
         output_list = [
-            getThePeaks(
+            single_gene_get_peaks(
                 pd.DataFrame(y),
                 N,
                 X,
@@ -619,7 +641,7 @@ def getSingleGenePeaks(
         inplace=True,
     )
 
-    peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = getThePeaks(
+    peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = single_gene_get_peaks(
         goverlaps, N, X, rel_height, min_gene_count
     )
 

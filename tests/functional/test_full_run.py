@@ -11,9 +11,9 @@ def test_full_run_multi_thread(rootdir, monkeypatch, tmp_path):
         [
             "clip.py",
             "-i",
-            os.path.join(rootdir, "tests", "data", "crosslinkcounts.bed"),
+            os.path.join(rootdir, "tests", "data", "cep295.bed"),
             "-a",
-            os.path.join(rootdir, "tests", "data", "annot.gff"),
+            os.path.join(rootdir, "tests", "data", "gencode.v38.cep295.gtf"),
             "-o",
             os.path.join(tmp_path, "clippy"),
             "-t",
@@ -53,7 +53,7 @@ def test_full_run_single_thread(rootdir, monkeypatch, tmp_path):
         assert test_lines == ref_lines
 
 
-def test_getThePeaks_profiling(rootdir):
+def test_single_gene_get_peaks_profiling(rootdir):
     xlinks = pybedtools.BedTool(
         os.path.join(rootdir, "tests", "data", "crosslinkcounts.bed")
     )
@@ -122,7 +122,7 @@ def test_getThePeaks_profiling(rootdir):
     ]
     pr = cProfile.Profile()
     pr.enable()
-    output = [clip.getThePeaks(*args) for args in arguments_list[:1000]]
+    output = [clip.single_gene_get_peaks(*args) for args in arguments_list[:1000]]
     pr.disable()
     pr.dump_stats(os.path.join(rootdir, "prof", "get_the_peaks.out"))
     assert len(output) == 1000
