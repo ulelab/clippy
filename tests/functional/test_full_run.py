@@ -36,6 +36,9 @@ def test_getThePeaks_profiling(rootdir):
         names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"],
         comment='#')
     annot_gene = annot[annot.feature_type=="gene"]
+    annot_exons = annot[annot.feature_type=="exon"].copy(True)
+    annot_exons["gene_id"] = [clip.get_gtf_attr_dict(attr_str)["gene_id"]
+        for attr_str in annot_exons["attributes"]]
     ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
     goverlaps = xlinks \
         .intersect(ang, s=True, wo=True) \
@@ -43,7 +46,7 @@ def test_getThePeaks_profiling(rootdir):
             'feature', 'gene_start', 'gene_stop', 'nothing', 'strand2', 'nothing2', 'gene_name', 'interval']) \
         .drop(['name', 'chrom2', 'nothing', 'nothing2', 'interval', 'strand2', 'source', 'feature'], axis=1)
     arguments_list = [
-        (pd.DataFrame(y), 50, 1, 0.8, 5, None)
+        (pd.DataFrame(y), 50, 1, 0.8, 5, clip.get_exon_annot(x, annot_exons), None)
         for x, y in goverlaps.groupby('gene_name', as_index=False)
     ]
     pr = cProfile.Profile()

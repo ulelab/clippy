@@ -224,7 +224,7 @@ class DashApp:
             if exclusion_search:
                 annot_exclusions = clip.return_exclusions(exclusion_search, self.gene_annot.loc[:,:"attributes"])
             peaks, broad_peaks, roll_mean_smoothed_scores, peak_details, heights = clip.getThePeaks(
-                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count, annot_exclusions)
+                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count, self.gene_exon_dicts[gene_name], annot_exclusions)
             if not isinstance(peaks, np.ndarray):
                 peaks, broad_peaks, roll_mean_smoothed_scores, peak_details, heights = [[]]*3 + [[[]]] + [[]]
         # Plot the rolling mean and thresholds

@@ -96,6 +96,14 @@ cat tests/data/gencode.v38.annotation.gtf | awk '{if($1=="chr11" && 93661682<=$4
 gunzip -c tests/data/tardbp-egfp-hek293-2-20201021-ju_mapped_to_genome_reads_single.bed.gz | awk '{if($1=="chr11" && 93661682<=$2 && $3<=93730358){print($0)}}' > tests/data/cep295.bed
 ```
 
+For RBFOX2 data:
+
+```
+cat tests/data/gencode.v38.annotation.gtf | awk '{if($1=="chr19" && 10000000<=$4 && $5<=11000000){print($0)}}' > tests/data/gencode.v38.chr19_10M_11M.gtf
+
+gunzip -c tests/data/HepG2_RBFOX2.xl.bed.gz | awk '{if($1=="chr19" && 10000000<=$2 && $3<=11000000){print($0)}}' > tests/data/rbfox2_chr19_10M_11M.bed
+```
+
 ### Concept
 Using the annotation provided, crosslinks over each gene are smoothed using a rolling mean. The window can be decided by the user. For each gene the mean of the smoothed signal is taken (red line) and the mean + (standard deviation * adjustment factor) (green line) is taken. The mean is used to define the minimum height of a peak. The mean + (standard deviation * adjustment factor) is taken to define the minimum prominence of a peak. Please see [here](https://en.wikipedia.org/wiki/Topographic_prominence#:~:text=The%20prominence%20of%20a%20peak,or%20key%20saddle%2C%20or%20linking) for the definition of topographical prominence. Essentially this parameter allows that we do not call many shallow peaks in a region where there is a clearly more prominent peak. 
 

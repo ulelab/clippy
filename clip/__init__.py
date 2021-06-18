@@ -16,14 +16,17 @@ __version__ = "0.0.1"
 
 def main():
     (counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene,
-        min_peak_count, threads, chunksize_factor, interactive, exclusion_search) = parse_arguments(sys.argv[1:])
+        min_peak_count, threads, chunksize_factor, interactive, no_exon_info,
+        exclusion_search) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
         app = clip.interaction.DashApp(counts_bed, annot)
         app.run()
     else:
         if my_gene is None:
-            peaks, broad_peaks = getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name, exclusion_search)
+            peaks, broad_peaks = getAllPeaks(counts_bed, annot, N, X, rel_height,
+                min_gene_count, threads, chunksize_factor, outfile_name, no_exon_info,
+                exclusion_search)
             outfile_name=outfile_name.replace(".bed","_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
         else:
@@ -60,6 +63,8 @@ def parse_arguments(input_arguments):
                         help='A factor used to control the number of jobs given to a thread at a time. A larger number reduces the number of jobs per chunk. Only increase if you experience crashes [DEFAULT 4]')
     optional.add_argument('-int', "--interactive", action='store_true',
                         help='starts a Dash server to allow for interactive parameter tuning')
+    optional.add_argument('-nei', "--no_exon_info", action='store_true',
+                        help='Turn off individual exon and intron thresholds')
     optional.add_argument('-ex',"--exclusion_search", type=str, nargs='?',
                         help='A list of GTF features to set different height thresholds on in the comma-separated format <gtf_key>-<search_pattern>')
     parser._action_groups.append(optional)
@@ -73,9 +78,9 @@ def parse_arguments(input_arguments):
         ".bed"])
     return(args.inputbed, args.annot, args.windowsize, args.adjust, args.height_cutoff,
         args.mingenecounts, outfile_name, args.mygene, args.minpeakcounts, args.threads,
-        args.chunksize_factor, args.interactive, args.exclusion_search)
+        args.chunksize_factor, args.interactive, args.no_exon_info, args.exclusion_search)
 
-def getThePeaks(test, N, X, rel_height, min_gene_count, exclusions):
+def getThePeaks(test, N, X, rel_height, min_gene_count, annot_exon, exclusions):
     # Get the peaks for one gene
     # Now need to get an array of values
     chrom, xlink_start, xlink_end, score, strand, start, stop, gene_name = test.iloc[0]
@@ -209,30 +214,54 @@ def return_exclusions(exclusion_search, annot_gene):
     annot_exclusions["score"] = [i[1] for i in exclusion_matches if i[0]]
     return(annot_exclusions)
 
-def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, chunksize_factor, outfile_name, exclusion_search):
+def get_exon_annot(gene_name, annot_exons):
+    if isinstance(annot_exons, pd.DataFrame):
+        return_table = annot_exons[
+            annot_exons.gene_id==get_gtf_attr_dict(gene_name)["gene_id"]].copy()
+        return_table.drop("gene_id", axis=1, inplace=True)
+        return(return_table)
+    return(None)
+
+def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads,
+    chunksize_factor, outfile_name, no_exon_info, exclusion_search):
     if threads > 1:
         pool = Pool(threads)
-    pho92_iclip = pybedtools.BedTool(counts_bed)
-    annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"], comment='#')
-    annot_gene = annot[annot.feature_type=="gene"]
+    clip_bed = pybedtools.BedTool(counts_bed)
+    annot = pd.read_table(annot, header=None, names=["chrom", "source", "feature_type",
+        "start", "end", "score", "strand", "frame", "attributes"], comment='#')
+    annot_gene = annot[annot.feature_type=="gene"].copy(True)
 
+    # Set up exon information
+    annot_exons = None
+    if not no_exon_info:
+        annot_exons = annot[annot.feature_type=="exon"].copy(True)
+        annot_exons["gene_id"] = [get_gtf_attr_dict(attr_str)["gene_id"]
+            for attr_str in annot_exons["attributes"]]
+
+    # Setup exclusions
     annot_exclusions = None
     if exclusion_search:
         annot_exclusions = return_exclusions(exclusion_search, annot_gene)
 
     ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
-    goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
-    goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
+    goverlaps = clip_bed.intersect(ang, s=True, wo=True) \
+        .to_dataframe(names=["chrom", "start", "end", "name", "score", "strand",
+            "chrom2", "source", "feature", "gene_start", "gene_stop", "nothing",
+            "strand2", "nothing2", "gene_name", "interval"])
+    goverlaps.drop(["name", "chrom2", "nothing", "nothing2", "interval", "strand2",
+        "source", "feature"], axis=1, inplace=True)
 
     if threads > 1:
         arguments_list = [
-            (pd.DataFrame(y), N, X, rel_height, min_gene_count, annot_exclusions)
+            (pd.DataFrame(y), N, X, rel_height, min_gene_count,
+            get_exon_annot(x, annot_exons), annot_exclusions)
             for x, y in goverlaps.groupby('gene_name', as_index=False)
         ]
         chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
         output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
     else:
-        output_list = [getThePeaks(pd.DataFrame(y), N, X, rel_height, min_gene_count, annot_exclusions)
+        output_list = [getThePeaks(pd.DataFrame(y), N, X, rel_height, min_gene_count,
+            get_exon_annot(x, annot_exons), annot_exclusions)
             for x, y in goverlaps.groupby('gene_name', as_index=False)]
 
     all_peaks=[]
