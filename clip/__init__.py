@@ -30,7 +30,7 @@ def main():
         chunksize_factor,
         interactive,
         no_exon_info,
-        exclusion_search,
+        alt_features,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
@@ -49,7 +49,7 @@ def main():
                 chunksize_factor,
                 outfile_name,
                 no_exon_info,
-                exclusion_search,
+                alt_features,
             )
             outfile_name = outfile_name.replace(".bed", "_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
@@ -165,7 +165,11 @@ def parse_arguments(input_arguments):
         type=int,
         default=16,
         nargs="?",
-        help="A factor used to control the number of jobs given to a thread at a time. A larger number reduces the number of jobs per chunk. Only increase if you experience crashes [DEFAULT 4]",
+        help=(
+            "A factor used to control the number of jobs given to a thread at "
+            "a time. A larger number reduces the number of jobs per chunk. "
+            "Only increase if you experience crashes [DEFAULT 4]"
+        ),
     )
     optional.add_argument(
         "-int",
@@ -180,11 +184,15 @@ def parse_arguments(input_arguments):
         help="Turn off individual exon and intron thresholds",
     )
     optional.add_argument(
-        "-ex",
-        "--exclusion_search",
+        "-alt",
+        "--alt_features",
         type=str,
         nargs="?",
-        help="A list of GTF features to set different height thresholds on in the comma-separated format <gtf_key>-<search_pattern>",
+        help=(
+            "A list of alternative GTF features to set individual height "
+            "thresholds on in the comma-separated format "
+            "<alt_feature_name>-<gtf_key>-<search_pattern>"
+        ),
     )
     parser._action_groups.append(optional)
     args = parser.parse_args(input_arguments)
@@ -215,11 +223,11 @@ def parse_arguments(input_arguments):
         args.chunksize_factor,
         args.interactive,
         args.no_exon_info,
-        args.exclusion_search,
+        args.alt_features,
     )
 
 
-def getThePeaks(test, N, X, rel_height, min_gene_count, annot_exon, exclusions):
+def getThePeaks(test, N, X, rel_height, min_gene_count, annot_exon, alt_features):
     # Get the peaks for one gene
     # Now need to get an array of values
     chrom, xlink_start, xlink_end, score, strand, start, stop, gene_name = test.iloc[0]
@@ -239,9 +247,9 @@ def getThePeaks(test, N, X, rel_height, min_gene_count, annot_exon, exclusions):
     # height_overrides
     height_overrides = [[False, 0.0]] * (stop - start)
 
-    if exclusions:
+    if alt_features:
         threshold_overrides = (
-            pybedtools.BedTool.from_dataframe(exclusions)
+            pybedtools.BedTool.from_dataframe(alt_features)
             .intersect(
                 pybedtools.BedTool(
                     "\t".join([chrom, str(start), str(stop), "gene", ".", strand]),
@@ -346,42 +354,42 @@ def get_gtf_attr_dict(attr_str):
     }
 
 
-def parse_exclusion_search(exclusion_search_str):
-    output = []
-    searches = exclusion_search_str.split(",")
+def parse_alt_features(alt_features_search_str):
+    output = {}
+    searches = alt_features_search_str.split(",")
     for search in searches:
         split_search = search.split("-")
-        output.append(
-            {
-                "key": split_search[0],
-                "regex": "-".join(split_search[1 : (len(split_search) - 1)]),
-                "mean": float(split_search[-1]),
-            }
+        output.setdefault(split_search[0], [])
+        output[split_search[0]].append(
+            {"key": split_search[1], "regex": "-".join(split_search[2:]),}
         )
     return output
 
 
-def test_exclusion(attr_str, exclusion_list):
-    mean_list = []
+def test_alt_features(attr_str, alt_features_dict):
+    return_set = set([])
     gtf_dict = get_gtf_attr_dict(attr_str)
-    for exclusion in exclusion_list:
-        if exclusion["key"] in gtf_dict:
-            if re.search(exclusion["regex"], gtf_dict[exclusion["key"]]):
-                mean_list.append(exclusion["mean"])
-    if len(mean_list) > 0:
-        return (True, max(mean_list))
-    else:
-        return (False, 0.0)
+    for alt_feature_name, alt_features_list in alt_features_dict.items():
+        for alt_feature in alt_features_list:
+            if alt_feature["key"] in gtf_dict:
+                if re.search(alt_feature["regex"], gtf_dict[alt_feature["key"]]):
+                    return_set.add(alt_feature_name)
+    return return_set
 
 
-def return_exclusions(exclusion_search, annot_gene):
-    exclusions = parse_exclusion_search(exclusion_search)
-    exclusion_matches = [
-        test_exclusion(attr_str, exclusions) for attr_str in annot_gene["attributes"]
+def return_alt_features(alt_feature_str, annot_gene):
+    alt_features = parse_alt_features(alt_feature_str)
+    alt_feature_matches = [
+        test_alt_features(attr_str, alt_features)
+        for attr_str in annot_gene["attributes"]
     ]
-    annot_exclusions = pd.DataFrame(annot_gene.iloc[[i[0] for i in exclusion_matches]])
-    annot_exclusions["score"] = [i[1] for i in exclusion_matches if i[0]]
-    return annot_exclusions
+    annot_alt_features = {
+        feature_name: pd.DataFrame(
+            annot_gene.iloc[[feature_name in i for i in alt_feature_matches]], copy=True
+        ).reset_index(drop=True)
+        for feature_name in alt_features.keys()
+    }
+    return annot_alt_features
 
 
 def get_exon_annot(gene_name, annot_exons):
@@ -405,7 +413,7 @@ def getAllPeaks(
     chunksize_factor,
     outfile_name,
     no_exon_info,
-    exclusion_search,
+    alt_features,
 ):
     if threads > 1:
         pool = Pool(threads)
@@ -437,10 +445,10 @@ def getAllPeaks(
             for attr_str in annot_exons["attributes"]
         ]
 
-    #  Setup exclusions
-    annot_exclusions = None
-    if exclusion_search:
-        annot_exclusions = return_exclusions(exclusion_search, annot_gene)
+    #  Setup alt_features
+    annot_alt_features = None
+    if alt_features:
+        annot_alt_features = return_alt_features(alt_features, annot_gene)
 
     ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
     goverlaps = clip_bed.intersect(ang, s=True, wo=True).to_dataframe(
@@ -487,7 +495,7 @@ def getAllPeaks(
                 rel_height,
                 min_gene_count,
                 get_exon_annot(x, annot_exons),
-                annot_exclusions,
+                annot_alt_features,
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
         ]
@@ -502,7 +510,7 @@ def getAllPeaks(
                 rel_height,
                 min_gene_count,
                 get_exon_annot(x, annot_exons),
-                annot_exclusions,
+                annot_alt_features,
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
         ]
@@ -570,7 +578,8 @@ def getSingleGenePeaks(
         sys.exit("Couldn't find your gene in the provided annotation")
     elif len(ang) > 1:
         sys.exit(
-            "Found more than one gene containing that name - could you be more specific?"
+            "Found more than one gene containing that name "
+            "- could you be more specific?"
         )
 
     ang = pybedtools.BedTool.from_dataframe(ang)
