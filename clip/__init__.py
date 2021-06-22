@@ -12,7 +12,7 @@ import sys
 import clip.interaction
 from multiprocessing import Pool
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 def main():
     (counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene,
