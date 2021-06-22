@@ -12,18 +12,12 @@ This is a python 3 program requiring the following modules:
 
 It is important to use bedtools v2.26.0. Also note, running matplotlib on a cluster it is helpful to add `export QT_QPA_PLATFORM='offscreen'` to your bash profile to avoid display errors.
 
-If you use conda, I have provided an environment.yaml:
+If you use conda, we provide an environment.yaml:
  
 ```
 conda env create -f environment.yml
 conda activate clippy
 ```
-
-Note: if you are running on MacOSX to get Matplotlib to work correctly with conda, you need to 
-```
-conda install python.app
-```
-and replace `python clip.py` to `pythonw clip.py` in the run command.
 
 ### Usage
 ```
@@ -48,15 +42,19 @@ optional arguments:
                         rolling mean window size [DEFAULT 50]
   -x [ADJUST], --adjust [ADJUST]
                         adjustment for prominence [DEFAULT 1]
+  -hc [HEIGHT_CUTOFF], --height_cutoff [HEIGHT_CUTOFF]
+                        proportion of prominence [DEFAULT 0.8]
   -mg [MINGENECOUNTS], --mingenecounts [MINGENECOUNTS]
                         min counts per gene to look for peaks [DEFAULT 5]
   -mb [MINPEAKCOUNTS], --minpeakcounts [MINPEAKCOUNTS]
                         min counts per broad peak [DEFAULT 5]
-  -d [DISTANCE], --distance [DISTANCE]
-                        distance to merge crosslinks around single nt peaks
-                        [DEFAULT 10]
   -g [MYGENE], --mygene [MYGENE]
                         gene name, limits analysis to single gene
+  -t [THREADS], --threads [THREADS]
+                        number of threads to use
+  -cf [CHUNKSIZE_FACTOR], --chunksize_factor [CHUNKSIZE_FACTOR]
+                        A factor used to control the number of jobs given to a thread at a time. A larger number reduces the number of jobs per chunk. Only increase if you experience crashes [DEFAULT 4]
+  -int, --interactive   starts a Dash server to allow for interactive parameter tuning
 ```
 *A note on -g, my-gene option*
 
@@ -68,10 +66,19 @@ The code only requires that you have a feature labelled "gene" in the 3rd column
 
 ### Run test data
 
+Get peaks for one gene along with an image of that gene.
+
 ```
-pythonw clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gff \
--n 50 -x 1 -mg 5 -mb 5 -g pmt2 -d 10
+python clip.py -i tests/data/crosslinkcounts.bed -o test_plot -a tests/data/annot.gff \
+-n 50 -x 1 -mg 5 -mb 5 -g pmt2 -hc 0.8
 ```
+
+Start a test instance of the interactive parameter search server:
+
+```
+python clip.py -i tests/data/crosslinkcounts.bed -o TESTING -a tests/data/annot.gff -int
+```
+
 
 ### Concept
 Using the annotation provided, crosslinks over each gene are smoothed using a rolling mean. The window can be decided by the user. For each gene the mean of the smoothed signal is taken (red line) and the mean + (standard deviation * adjustment factor) (green line) is taken. The mean is used to define the minimum height of a peak. The mean + (standard deviation * adjustment factor) is taken to define the minimum prominence of a peak. Please see [here](https://en.wikipedia.org/wiki/Topographic_prominence#:~:text=The%20prominence%20of%20a%20peak,or%20key%20saddle%2C%20or%20linking) for the definition of topographical prominence. Essentially this parameter allows that we do not call many shallow peaks in a region where there is a clearly more prominent peak. 
@@ -81,11 +88,22 @@ In the image below, you can see the four positions the algorithm picks out in th
 ![Image of gene](pmt2_demo.png)
 
 
-### Development ideas
-- [ ] Check for overlapping genes and have a heirarchy to deal with them.
-- [ ] Try instead of merging crosslinks to get broader peak regions, use the intercept of the smoothed crosslink peaks with the green prominence line. Note: I have tried using the intrinsic width property of "find_peaks" and this seems to call things way too wide.
-- [ ] Parallelise looping through genes to improve speed.
-- [ ] Improve single gene visualisation - integrate with cliplotr? and flip reverse stranded genes for this graph.
+### Developer Functions
 
-### Author
+If you plan to contribute to the Clippy code we have some helpful functions for development. To run the automated testing, use:
+
+```
+pytest --cov=clip
+```
+
+You might be interested in how long certain functions take to run. To run the profiling code:
+
+```
+pytest -k profiling --profile-svg
+python -m gprof2dot -f pstats prof/get_the_peaks.out | dot -Tpdf -o prof/get_the_peaks.pdf
+```
+
+
+### Authors
 Charlotte Capitanchik - charlotte.capitanchik@crick.ac.uk
+Marc Jones - marc.jones@crick.ac.uk
