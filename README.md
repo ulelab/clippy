@@ -73,19 +73,6 @@ pythonw clip.py -i test/crosslinkcounts.bed -o test -a test/annot.gff \
 -n 50 -x 1 -mg 5 -mb 5 -g pmt2 -d 10
 ```
 
-To run the automated testing, use:
-
-```
-pytest --cov=clip
-```
-
-To run the profiling code:
-
-```
-pytest -k profiling --profile-svg
-python -m gprof2dot -f pstats prof/get_the_peaks.out | dot -Tpdf -o prof/get_the_peaks.pdf
-```
-
 ### Concept
 Using the annotation provided, crosslinks over each gene are smoothed using a rolling mean. The window can be decided by the user. For each gene the mean of the smoothed signal is taken (red line) and the mean + (standard deviation * adjustment factor) (green line) is taken. The mean is used to define the minimum height of a peak. The mean + (standard deviation * adjustment factor) is taken to define the minimum prominence of a peak. Please see [here](https://en.wikipedia.org/wiki/Topographic_prominence#:~:text=The%20prominence%20of%20a%20peak,or%20key%20saddle%2C%20or%20linking) for the definition of topographical prominence. Essentially this parameter allows that we do not call many shallow peaks in a region where there is a clearly more prominent peak. 
 
@@ -94,11 +81,22 @@ In the image below, you can see the four positions the algorithm picks out in th
 ![Image of gene](pmt2_demo.png)
 
 
-### Development ideas
-- [ ] Check for overlapping genes and have a heirarchy to deal with them.
-- [ ] Try instead of merging crosslinks to get broader peak regions, use the intercept of the smoothed crosslink peaks with the green prominence line. Note: I have tried using the intrinsic width property of "find_peaks" and this seems to call things way too wide.
-- [ ] Parallelise looping through genes to improve speed.
-- [ ] Improve single gene visualisation - integrate with cliplotr? and flip reverse stranded genes for this graph.
+### Developer Functions
 
-### Author
+If you plan to contribute to the Clippy code we have some helpful functions for development. To run the automated testing, use:
+
+```
+pytest --cov=clip
+```
+
+You might be interested in how long certain functions take to run. To run the profiling code:
+
+```
+pytest -k profiling --profile-svg
+python -m gprof2dot -f pstats prof/get_the_peaks.out | dot -Tpdf -o prof/get_the_peaks.pdf
+```
+
+
+### Authors
 Charlotte Capitanchik - charlotte.capitanchik@crick.ac.uk
+Marc Jones - marc.jones@crick.ac.uk
