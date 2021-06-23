@@ -141,6 +141,19 @@ class DashApp:
                                 200: '200',
                             },
                             tooltip={'always_visible': True, 'placement': 'bottom'}
+                        )], style={'marginBottom': '1.5em','marginTop': '0.5em'}),
+                                                dash_html.Label('Minimum counts per broad peak'),
+                        dash_html.Div([ dash_cc.Slider(
+                            id='min-peak-count-slider',
+                            min=1,
+                            max=200,
+                            step=1,
+                            value=5,
+                            marks={
+                                1: '1',
+                                200: '200',
+                            },
+                            tooltip={'always_visible': True, 'placement': 'bottom'}
                         )], style={'marginBottom': '1.5em','marginTop': '0.5em'})
                     ], className='card-body')
                 ], className='card bg-default sticky-top'), lg=3)
@@ -156,6 +169,7 @@ class DashApp:
             Input('x-slider', 'value'),
             Input('rel_height', 'value'),
             Input('min-count-slider', 'value'),
+            Input('min-peak-count-slider', 'value'),
             State('gene-graphs', 'children'))(self.update_figures)
         self.app.callback(
             Output('gene-select', 'options'),
@@ -181,7 +195,7 @@ class DashApp:
         ]
         return(return_options)
 
-    def update_figures(self, gene_list, N, X, rel_height, min_gene_count, current_figures):
+    def update_figures(self, gene_list, N, X, rel_height, min_gene_count, min_peak_count, current_figures):
         # Subset the xlink BED file for each gene
         if len(gene_list) > 0:
             for gene in gene_list:
@@ -203,19 +217,19 @@ class DashApp:
                         'nothing2', 'interval', 'strand2', 'source', 'feature',
                         'attributes', 'gene_id'], axis=1, inplace=True)
         if len(gene_list) == 0:
-            figs = [self.peak_call_and_plot(None, N, X, rel_height, min_gene_count, current_figures)]
+            figs = [self.peak_call_and_plot(None, N, X, rel_height, min_gene_count, min_peak_count, current_figures)]
         else:
-            figs = [self.peak_call_and_plot(gene, N, X, rel_height, min_gene_count, current_figures)
+            figs = [self.peak_call_and_plot(gene, N, X, rel_height, min_gene_count, min_peak_count, current_figures)
                 for gene in gene_list]
         return(figs, 'Idle')
 
-    def peak_call_and_plot(self, gene_name, N, X, rel_height, min_gene_count, current_figures):
+    def peak_call_and_plot(self, gene_name, N, X, rel_height, min_gene_count, min_peak_count, current_figures):
         # Perform the peak calling if the gene is valid
         if gene_name == None or self.gene_xlink_dicts[gene_name].shape[0] == 0:
             peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = [[]]*3 + [[[]]]
         else:
             peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = clip.getThePeaks(
-                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count)
+                self.gene_xlink_dicts[gene_name], N, X, rel_height, min_gene_count, min_peak_count)
         # Plot the rolling mean and thresholds
         fig = make_subplots(rows=3, row_heights=[0.90, 0.05, 0.05], shared_xaxes=True, vertical_spacing=0.12)
         # below is code for adding relative height (broad peak) trace

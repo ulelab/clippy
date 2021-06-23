@@ -28,7 +28,7 @@ def main():
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
         else:
             outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+".bed"
-            peaks, broad_peaks = getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene)
+            peaks, broad_peaks = getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene, min_peak_count)
             outfile_name=my_gene+"_rollmean" +str(N)+"_stdev"+str(X)+"_minGeneCount"+str(min_gene_count)+"_broadPeaks.bed"
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
 
@@ -73,7 +73,7 @@ def parse_arguments(input_arguments):
         args.mingenecounts, outfile_name, args.mygene, args.minpeakcounts, args.threads,
         args.chunksize_factor, args.interactive)
 
-def getThePeaks(test, N, X, rel_height, min_gene_count):
+def getThePeaks(test, N, X, rel_height, min_gene_count, min_peak_count):
     # Get the peaks for one gene
     # Now need to get an array of values
     chrom, xlink_start, xlink_end, score, strand, start, stop, gene_name = test.iloc[0]
@@ -112,18 +112,21 @@ def getThePeaks(test, N, X, rel_height, min_gene_count):
         ) for i in range(peak_num)
     ])
 
+
     broad_peaks_in_gene = np.array([
         (
             chrom,
             round(peaks[1]['left_ips'][i])+start,
             round(peaks[1]['right_ips'][i])+start+1,
             gene_name,
-            ".",
+            scores[round(peaks[1]['left_ips'][i]):round(peaks[1]['right_ips'][i])+1].sum(),
             strand
         ) for i in range(peak_num)
     ])
 
-    return(peaks_in_gene, broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
+    filt_broad_peaks_in_gene = broad_peaks_in_gene[broad_peaks_in_gene[:,4].astype("float")>=min_peak_count]
+
+    return(peaks_in_gene, filt_broad_peaks_in_gene, roll_mean_smoothed_scores, peaks)
 
 def calc_chunksize(n_workers, len_iterable, factor):
     """Calculate chunksize argument for Pool-methods.
@@ -149,13 +152,13 @@ def getAllPeaks(counts_bed, annot, N, X, rel_height, min_gene_count, threads, ch
 
     if threads > 1:
         arguments_list = [
-            (pd.DataFrame(y), N, X, rel_height, min_gene_count)
+            (pd.DataFrame(y), N, X, rel_height, min_gene_count, min_peak_count)
             for x, y in goverlaps.groupby('gene_name', as_index=False)
         ]
         chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
         output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
     else:
-        output_list = [getThePeaks(pd.DataFrame(y), N, X, rel_height, min_gene_count)
+        output_list = [getThePeaks(pd.DataFrame(y), N, X, rel_height, min_gene_count, min_peak_count)
             for x, y in goverlaps.groupby('gene_name', as_index=False)]
 
     all_peaks=[]
@@ -194,7 +197,7 @@ def getBroadPeaks(crosslinks, broad_peaks, min_peak_count, outfile_name): # cros
     final_peaks.saveas(outfile_name)
     print("Finished, written broad peaks file.")
 
-def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene):
+def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene, min_peak_count):
     pho92_iclip = counts_bed
     annot = pd.read_table(annot, header=None, names=["chrom","source","feature_type","start","end","score","strand","frame","attributes"])
     annot_gene = annot[annot.feature_type=="gene"]
@@ -211,7 +214,7 @@ def getSingleGenePeaks(counts_bed, annot, N, X, rel_height, min_gene_count, outf
     goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(names=['chrom', 'start', 'end', 'name', 'score', 'strand','chrom2','source','feature','gene_start', 'gene_stop','nothing','strand2','nothing2','gene_name','interval'])
     goverlaps.drop(['name','chrom2','nothing','nothing2','interval','strand2','source','feature'], axis=1, inplace=True)
 
-    peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = getThePeaks(goverlaps, N, X, rel_height, min_gene_count)
+    peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = getThePeaks(goverlaps, N, X, rel_height, min_gene_count, min_peak_count)
 
     if not isinstance(peaks, np.ndarray):
         sys.exit("No peaks found in this gene with the current parameters")
