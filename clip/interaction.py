@@ -142,7 +142,7 @@ class DashApp:
                             },
                             tooltip={'always_visible': True, 'placement': 'bottom'}
                         )], style={'marginBottom': '1.5em','marginTop': '0.5em'}),
-                        dash_html.Label('Minimum counts per broad peak'),
+                                                dash_html.Label('Minimum counts per broad peak'),
                         dash_html.Div([ dash_cc.Slider(
                             id='min-peak-count-slider',
                             min=1,
@@ -158,7 +158,7 @@ class DashApp:
                     ], className='card-body')
                 ], className='card bg-default sticky-top'), lg=3)
             ])
-        ], fluid=True)
+        ])
 
     def setup_callbacks(self):
         self.app.callback(
@@ -321,7 +321,6 @@ class DashApp:
             row=3, col=1
         )
         # Remove axes from gene model figure and broad peaks track
-        fig.update_layout(width=900)
         fig.update_xaxes(showgrid=False, zeroline=False, row=2, col=1, title={"text":"Gene model", "standoff": 1})
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
         fig.update_xaxes(showgrid=False, zeroline=False, row=3, col=1, showticklabels=False, title={"text":"Clippy broad peaks", "standoff": 0.05})
@@ -341,7 +340,7 @@ class DashApp:
                 "yanchor": "top",
                 "y": 0.99,
                 "xanchor": "left",
-                "x": -0.2
+                "x": 0.01
             }
         )
         if len(roll_mean_smoothed_scores) > 0:
