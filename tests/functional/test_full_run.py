@@ -11,9 +11,9 @@ def test_full_run_multi_thread(rootdir, monkeypatch, tmp_path):
         [
             "clip.py",
             "-i",
-            os.path.join(rootdir, "tests", "data", "cep295.bed"),
+            os.path.join(rootdir, "tests", "data", "crosslinkcounts.bed"),
             "-a",
-            os.path.join(rootdir, "tests", "data", "gencode.v38.cep295.gtf"),
+            os.path.join(rootdir, "tests", "data", "annot.gff"),
             "-o",
             os.path.join(tmp_path, "clippy"),
             "-t",

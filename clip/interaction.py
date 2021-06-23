@@ -243,12 +243,12 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label("Exclusions"),
+                                            dash_html.Label("Alternative features"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Textarea(
-                                                        id="exclusion-input",
-                                                        placeholder="e.g. gene_type-scaRNA-100",
+                                                        id="alt-features-input",
+                                                        placeholder="e.g. scaRNA-gene_type-scaRNA",
                                                     )
                                                 ],
                                                 style={
@@ -278,7 +278,7 @@ class DashApp:
             Input("x-slider", "value"),
             Input("rel_height", "value"),
             Input("min-count-slider", "value"),
-            Input("exclusion-input", "value"),
+            Input("alt-features-input", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
         self.app.callback(
@@ -312,7 +312,7 @@ class DashApp:
         X,
         rel_height,
         min_gene_count,
-        exclusion_search,
+        alt_feature_search,
         current_figures,
     ):
         # Subset the xlink BED file for each gene
@@ -380,7 +380,7 @@ class DashApp:
                     X,
                     rel_height,
                     min_gene_count,
-                    exclusion_search,
+                    alt_feature_search,
                     current_figures,
                 )
             ]
@@ -392,7 +392,7 @@ class DashApp:
                     X,
                     rel_height,
                     min_gene_count,
-                    exclusion_search,
+                    alt_feature_search,
                     current_figures,
                 )
                 for gene in gene_list
@@ -406,19 +406,24 @@ class DashApp:
         X,
         rel_height,
         min_gene_count,
-        exclusion_search,
+        alt_feature_search,
         current_figures,
     ):
         # Perform the peak calling if the gene is valid
         if gene_name == None or self.gene_xlink_dicts[gene_name].shape[0] == 0:
-            peaks, broad_peaks, roll_mean_smoothed_scores, peak_details, heights = (
-                [[]] * 3 + [[[]]] + [[]]
-            )
+            (
+                peaks,
+                broad_peaks,
+                roll_mean_smoothed_scores,
+                peak_details,
+                heights,
+                prominences,
+            ) = ([[]] * 3 + [[[]]] + [[]] * 2)
         else:
-            annot_exclusions = None
-            if exclusion_search:
-                annot_exclusions = clip.return_exclusions(
-                    exclusion_search, self.gene_annot.loc[:, :"attributes"]
+            annot_alt_features = None
+            if alt_feature_search:
+                annot_alt_features = clip.return_alt_features(
+                    alt_feature_search, self.gene_annot.iloc[:, :-2],
                 )
             (
                 peaks,
@@ -426,6 +431,7 @@ class DashApp:
                 roll_mean_smoothed_scores,
                 peak_details,
                 heights,
+                prominences,
             ) = clip.single_gene_get_peaks(
                 self.gene_xlink_dicts[gene_name],
                 N,
@@ -433,12 +439,17 @@ class DashApp:
                 rel_height,
                 min_gene_count,
                 self.gene_exon_dicts[gene_name],
-                annot_exclusions,
+                annot_alt_features,
             )
             if not isinstance(peaks, np.ndarray):
-                peaks, broad_peaks, roll_mean_smoothed_scores, peak_details, heights = (
-                    [[]] * 3 + [[[]]] + [[]]
-                )
+                (
+                    peaks,
+                    broad_peaks,
+                    roll_mean_smoothed_scores,
+                    peak_details,
+                    heights,
+                    prominences,
+                ) = ([[]] * 3 + [[[]]] + [[]] * 2)
         # Plot the rolling mean and thresholds
         fig = make_subplots(
             rows=3,
@@ -613,13 +624,11 @@ class DashApp:
                 row=1,
                 col=1,
             )
-            prominence_threshold_val = mean_val + (
-                np.std(roll_mean_smoothed_scores) * X
-            )
             fig.add_trace(
                 plotlygo.Scatter(
                     x=list(range(len(roll_mean_smoothed_scores))),
-                    y=[prominence_threshold_val] * len(roll_mean_smoothed_scores),
+                    y=heights
+                    + prominences,  # [prominence_threshold_val] * len(roll_mean_smoothed_scores),
                     mode="lines",
                     name="Prominence threshold",
                     line=dict(color="forestgreen", width=2),

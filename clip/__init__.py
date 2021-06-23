@@ -244,18 +244,18 @@ def single_gene_get_peaks(
     scores = np.array(list(xlink_coverage.values()))
 
     if sum(scores) < min_gene_count:
-        return (None, None, None, None, None)
+        return (None, None, None, None, None, None)
 
     feature_names = set(["intron", "exon"])
 
-    mean_sets = [set(["intron"]) for i in range(stop - start)]
+    nucleotide_sets = [set(["intron"]) for i in range(stop - start)]
 
     for index, row in annot_exon.iterrows():
         for pos in range(row["start"] - 1, row["end"]):
             zero_pos = pos - start
-            if "intron" in mean_sets[zero_pos]:
-                mean_sets[zero_pos].remove("intron")
-            mean_sets[zero_pos].add("exon")
+            if "intron" in nucleotide_sets[zero_pos]:
+                nucleotide_sets[zero_pos].remove("intron")
+            nucleotide_sets[zero_pos].add("exon")
 
     if alt_features:
         for feature_name, alt_features_annot in alt_features.items():
@@ -274,47 +274,50 @@ def single_gene_get_peaks(
                 for pos in range(row["start"] - 1, row["end"]):
                     zero_pos = pos - start
                     for name in ["intron", "exon"]:
-                        if name in mean_sets[zero_pos]:
-                            mean_sets[zero_pos].remove(name)
-                    mean_sets[zero_pos].add(feature_name)
+                        if name in nucleotide_sets[zero_pos]:
+                            nucleotide_sets[zero_pos].remove(name)
+                    nucleotide_sets[zero_pos].add(feature_name)
                     feature_names.add(feature_name)
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
 
-    mean_dict = {
-        feature_name: np.mean(
-            roll_mean_smoothed_scores[
-                np.logical_not([feature_name in i for i in mean_sets])
-            ]
+    mean_dict = {}
+    std_dict = {}
+
+    for feature_name in feature_names:
+        feature_values = roll_mean_smoothed_scores[
+            [feature_name in i for i in nucleotide_sets]
+        ]
+        feature_values = feature_values[np.logical_not(feature_values == 0.0)]
+        if len(feature_values) > 0:
+            mean_dict[feature_name] = np.mean(feature_values)
+            std_dict[feature_name] = np.std(feature_values)
+        else:
+            mean_dict[feature_name] = 0.0
+            std_dict[feature_name] = 0.0
+
+    heights = np.array(
+        [max([mean_dict[feature] for feature in pos]) for pos in nucleotide_sets]
+    )
+
+    prominences = (
+        np.array(
+            [max([std_dict[feature] for feature in pos]) for pos in nucleotide_sets]
         )
-        for feature_name in feature_names
-    }
-    print(mean_dict)
-    # non_overridden_roll_mean_smoothed_scores = roll_mean_smoothed_scores[
-    #     np.logical_not([i[0] for i in height_overrides])
-    # ]
-    # if len(non_overridden_roll_mean_smoothed_scores) > 0:
-    #     default_threshold = np.mean(non_overridden_roll_mean_smoothed_scores)
-
-    # for idx in range(len(height_overrides)):
-    #     if not height_overrides[idx][0]:
-    #         height_overrides[idx][1] = default_threshold
-
-    # heights = np.array([i[1] for i in height_overrides])
-
-    heights = np.mean(roll_mean_smoothed_scores)
+        * X
+    )
 
     peaks = sig.find_peaks(
         roll_mean_smoothed_scores,
         height=heights,
-        prominence=(np.std(roll_mean_smoothed_scores) * X),
+        prominence=prominences,
         width=0.0,
         rel_height=rel_height,
     )
 
     peak_num = len(peaks[0])
     if peak_num == 0:
-        return (None, None, None, None, None)
+        return (None, None, None, None, None, None)
 
     peaks_in_gene = np.array(
         [
@@ -343,13 +346,13 @@ def single_gene_get_peaks(
             for i in range(peak_num)
         ]
     )
-
     return (
         peaks_in_gene,
         broad_peaks_in_gene,
         roll_mean_smoothed_scores,
         peaks,
         heights,
+        prominences,
     )
 
 
@@ -381,10 +384,11 @@ def parse_alt_features(alt_features_search_str):
     searches = alt_features_search_str.split(",")
     for search in searches:
         split_search = search.split("-")
-        output.setdefault(split_search[0], [])
-        output[split_search[0]].append(
-            {"key": split_search[1], "regex": "-".join(split_search[2:]),}
-        )
+        if len(split_search) >= 3:
+            output.setdefault(split_search[0], [])
+            output[split_search[0]].append(
+                {"key": split_search[1], "regex": "-".join(split_search[2:]),}
+            )
     return output
 
 
@@ -540,7 +544,14 @@ def getAllPeaks(
     all_peaks = []
     broad_peaks = []
     for output in output_list:
-        peaks_in_gene, broad_peaks_in_gene, rollingmean, peak_details, heights = output
+        (
+            peaks_in_gene,
+            broad_peaks_in_gene,
+            rollingmean,
+            peak_details,
+            heights,
+            prominences,
+        ) = output
         if isinstance(peaks_in_gene, np.ndarray):
             all_peaks.append(peaks_in_gene)
             broad_peaks.append(broad_peaks_in_gene)
