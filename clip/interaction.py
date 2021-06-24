@@ -299,27 +299,27 @@ class DashApp:
                 row=2, col=1
             )
         # add broad peaks as boxes
-        fig.add_trace(plotlygo.Scatter(
-            x=np.array([
-                [
-                    peak_details[1]['left_ips'][idx],
-                    peak_details[1]['right_ips'][idx],
-                    peak_details[1]['right_ips'][idx],
-                    peak_details[1]['left_ips'][idx],
-                    None
-                ]
-                for idx in range(len(peak_details[0]))
-            ]).flatten(),
-            y=np.array([
-                [0, 0, 1, 1, None]
-                for idx in range(len(peak_details[0]))
-            ]).flatten(),
-            fill='toself',
-            line={'color': "darkorange"},
-            fillcolor="darkorange",
-            showlegend=False),
-            row=3, col=1
-        )
+            fig.add_trace(plotlygo.Scatter(
+                x=np.array([
+                    [
+                        broad_peaks[idx][1].astype(float)-min_value,
+                        broad_peaks[idx][2].astype(float)-min_value,
+                        broad_peaks[idx][2].astype(float)-min_value,
+                        broad_peaks[idx][1].astype(float)-min_value,
+                        None
+                    ]
+                    for idx in range(len(broad_peaks))
+                ]).flatten(),
+                y=np.array([
+                    [0, 0, 1, 1, None]
+                    for idx in range(len(peak_details[0]))
+                ]).flatten(),
+                fill='toself',
+                line={'color': "darkorange"},
+                fillcolor="darkorange",
+                showlegend=False),
+                row=3, col=1
+            )
         # Remove axes from gene model figure and broad peaks track
         fig.update_xaxes(showgrid=False, zeroline=False, row=2, col=1, title={"text":"Gene model", "standoff": 1})
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=2, col=1)
@@ -340,7 +340,7 @@ class DashApp:
                 "yanchor": "top",
                 "y": 0.99,
                 "xanchor": "left",
-                "x": 0.01
+                "x": -0.5
             }
         )
         if len(roll_mean_smoothed_scores) > 0:
