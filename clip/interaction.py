@@ -293,11 +293,32 @@ class DashApp:
                 showlegend=False),
                 row=2, col=1
             )
+
             fig.add_shape(type="line",
                 x0=0, y0=0.5, x1=max_value, y1=0.5,
                 line=dict(color="#cacaca", width=2),
+                row=2, col=1, layer='below'
+            )
+
+            # add arrow corresponding to gene strand
+            # get strand - how?????
+            direction=self.gene_xlink_dicts[strand]
+            if direction=="+":
+                marksymb="triangle-right"
+            else:
+                marksymb="triangle-left"
+            fig.add_trace(plotlygo.Scatter(
+                x=np.array([max_value/2, max_value/4, max_value*0.75]),
+                y=np.array([0.5, 0.5, 0.5]),
+                fill='toself',
+                mode="markers",
+                marker_symbol=marksymb,
+                marker_size=20,
+                marker_color="black",
+                showlegend=False),
                 row=2, col=1
             )
+
         # add broad peaks as boxes
             fig.add_trace(plotlygo.Scatter(
                 x=np.array([
@@ -366,19 +387,25 @@ class DashApp:
                 x=peak_details[0],
                 y=[roll_mean_smoothed_scores[idx] for idx in peak_details[0]],
                 mode='markers',
-                name='Narrow peaks'),
-                row=1, col=1)
-            fig.update_traces(
-                marker={
-                    "size": 12,
-                    "color": "mediumvioletred",
-                    "line": {
+                marker_size=12,
+                marker_color="mediumvioletred",
+                marker_line={
                         "width": 2,
                         "color": "darkslateblue"
-                    }
-                },
-                selector={"mode": "markers"}
-            )
+                    },
+                name='Narrow peaks'),
+                row=1, col=1)
+            #fig.update_traces(
+            #    marker={
+            #        "size": 12,
+            #        "color": "mediumvioletred",
+            #        "line": {
+            #            "width": 2,
+            #            "color": "darkslateblue"
+            #        }
+            #    },
+            #    selector={"mode": "markers"}
+            #)
 
         current_relayout_data = None
         if current_figures:
