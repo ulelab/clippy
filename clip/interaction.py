@@ -302,7 +302,7 @@ class DashApp:
 
             # add arrow corresponding to gene strand
             # get strand - how?????
-            direction=self.gene_xlink_dicts[strand]
+            direction=self.gene_xlink_dicts[gene_name]["strand"][0]
             if direction=="+":
                 marksymb="triangle-right"
             else:
