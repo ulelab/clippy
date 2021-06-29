@@ -243,19 +243,29 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label('Minimum counts per broad peak'),
-                                            dash_html.Div([ dash_cc.Slider(
-                                                id='min-peak-count-slider',
-                                                min=1,
-                                                max=200,
-                                                step=1,
-                                                value=5,
-                                                marks={
-                                                    1: '1',
-                                                    200: '200',
+                                            dash_html.Label(
+                                                "Minimum counts per broad peak"
+                                            ),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="min-peak-count-slider",
+                                                        min=1,
+                                                        max=200,
+                                                        step=1,
+                                                        value=5,
+                                                        marks={1: "1", 200: "200",},
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
                                                 },
-                                                tooltip={'always_visible': True, 'placement': 'bottom'}
-                                            )], style={'marginBottom': '1.5em','marginTop': '0.5em'}),
+                                            ),
                                             dash_html.Label("Alternative features"),
                                             dash_html.Div(
                                                 [
@@ -291,7 +301,7 @@ class DashApp:
             Input("x-slider", "value"),
             Input("rel_height", "value"),
             Input("min-count-slider", "value"),
-            Input('min-peak-count-slider', 'value'),
+            Input("min-peak-count-slider", "value"),
             Input("alt-features-input", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
@@ -564,52 +574,65 @@ class DashApp:
                 col=1,
             )
 
-            fig.add_shape(type="line",
-                x0=0, y0=0.5, x1=max_value, y1=0.5,
+            fig.add_shape(
+                type="line",
+                x0=0,
+                y0=0.5,
+                x1=max_value,
+                y1=0.5,
                 line=dict(color="#cacaca", width=2),
-                row=2, col=1, layer='below'
+                row=2,
+                col=1,
+                layer="below",
             )
 
             # add arrow corresponding to gene strand
             # get strand - how?????
-            direction=self.gene_xlink_dicts[gene_name]["strand"][0]
-            if direction=="+":
-                marksymb="triangle-right"
+            direction = self.gene_xlink_dicts[gene_name]["strand"][0]
+            if direction == "+":
+                marksymb = "triangle-right"
             else:
-                marksymb="triangle-left"
-            fig.add_trace(plotlygo.Scatter(
-                x=np.array([max_value/2, max_value/4, max_value*0.75]),
-                y=np.array([0.5, 0.5, 0.5]),
-                fill='toself',
-                mode="markers",
-                marker_symbol=marksymb,
-                marker_size=20,
-                marker_color="black",
-                showlegend=False),
-                row=2, col=1
+                marksymb = "triangle-left"
+            fig.add_trace(
+                plotlygo.Scatter(
+                    x=np.array([max_value / 2, max_value / 4, max_value * 0.75]),
+                    y=np.array([0.5, 0.5, 0.5]),
+                    fill="toself",
+                    mode="markers",
+                    marker_symbol=marksymb,
+                    marker_size=20,
+                    marker_color="black",
+                    showlegend=False,
+                ),
+                row=2,
+                col=1,
             )
 
-        # add broad peaks as boxes
-            fig.add_trace(plotlygo.Scatter(
-                x=np.array([
-                    [
-                        broad_peaks[idx][1].astype(float)-min_value,
-                        broad_peaks[idx][2].astype(float)-min_value,
-                        broad_peaks[idx][2].astype(float)-min_value,
-                        broad_peaks[idx][1].astype(float)-min_value,
-                        None
-                    ]
-                    for idx in range(len(broad_peaks))
-                ]).flatten(),
-                y=np.array([
-                    [0, 0, 1, 1, None]
-                    for idx in range(len(peak_details[0]))
-                ]).flatten(),
-                fill='toself',
-                line={'color': "darkorange"},
-                fillcolor="darkorange",
-                showlegend=False),
-                row=3, col=1
+            # add broad peaks as boxes
+            fig.add_trace(
+                plotlygo.Scatter(
+                    x=np.array(
+                        [
+                            [
+                                broad_peaks[idx][1].astype(float) - min_value,
+                                broad_peaks[idx][2].astype(float) - min_value,
+                                broad_peaks[idx][2].astype(float) - min_value,
+                                broad_peaks[idx][1].astype(float) - min_value,
+                                None,
+                            ]
+                            for idx in range(len(broad_peaks))
+                        ]
+                    ).flatten(),
+                    y=np.array(
+                        [[0, 0, 1, 1, None] for idx in range(len(peak_details[0]))]
+                    ).flatten(),
+                    fill="toself",
+                    line={"color": "darkorange"},
+                    fillcolor="darkorange",
+                    showlegend=False,
+                ),
+                row=3,
+                col=1,
             )
         # Remove axes from gene model figure and broad peaks track
         fig.update_xaxes(
@@ -630,23 +653,24 @@ class DashApp:
         )
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=3, col=1)
         fig.update_layout(xaxis_showticklabels=True)
-        plot_title = gene_name + " ; Total xlinks = " + str(self.gene_xlink_dicts[gene_name]["score"].sum()) if gene_name is not None else gene_name
+        plot_title = (
+            gene_name
+            + " ; Total xlinks = "
+            + str(self.gene_xlink_dicts[gene_name]["score"].sum())
+            if gene_name is not None
+            else gene_name
+        )
         fig.update_layout(
             margin=dict(l=10, r=10, t=20, b=10),
             plot_bgcolor="rgba(0,0,0,0)",
             title={
-                'text': plot_title,
-                'y':0.98,
-                'x':0.5,
-                'xanchor': 'center',
-                'yanchor': 'top'
-            },
-            legend={
+                "text": plot_title,
+                "y": 0.98,
+                "x": 0.5,
+                "xanchor": "center",
                 "yanchor": "top",
-                "y": 0.99,
-                "xanchor": "left",
-                "x": -0.5
-            }
+            },
+            legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": -0.5},
         )
         if len(roll_mean_smoothed_scores) > 0:
             mean_val = np.mean(roll_mean_smoothed_scores)
@@ -675,19 +699,20 @@ class DashApp:
             )
         # Add in peaks, if they have been called
         if len(peak_details[0]) > 0:
-            fig.add_trace(plotlygo.Scatter(
-                x=peak_details[0],
-                y=[roll_mean_smoothed_scores[idx] for idx in peak_details[0]],
-                mode='markers',
-                marker_size=12,
-                marker_color="mediumvioletred",
-                marker_line={
-                        "width": 2,
-                        "color": "darkslateblue"
-                    },
-                name='Narrow peaks'),
-                row=1, col=1)
-            #fig.update_traces(
+            fig.add_trace(
+                plotlygo.Scatter(
+                    x=peak_details[0],
+                    y=[roll_mean_smoothed_scores[idx] for idx in peak_details[0]],
+                    mode="markers",
+                    marker_size=12,
+                    marker_color="mediumvioletred",
+                    marker_line={"width": 2, "color": "darkslateblue"},
+                    name="Narrow peaks",
+                ),
+                row=1,
+                col=1,
+            )
+            # fig.update_traces(
             #    marker={
             #        "size": 12,
             #        "color": "mediumvioletred",
@@ -697,7 +722,7 @@ class DashApp:
             #        }
             #    },
             #    selector={"mode": "markers"}
-            #)
+            # )
 
         current_relayout_data = None
         if current_figures:

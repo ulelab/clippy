@@ -6,7 +6,8 @@ from scipy import stats
 import pybedtools
 import pandas as pd
 import matplotlib
-matplotlib.use('TkAgg')
+
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import argparse
 import sys
@@ -47,6 +48,7 @@ def main():
                 X,
                 rel_height,
                 min_gene_count,
+                min_peak_count,
                 threads,
                 chunksize_factor,
                 outfile_name,
@@ -342,14 +344,18 @@ def single_gene_get_peaks(
                 round(peaks[1]["left_ips"][i]) + start,
                 round(peaks[1]["right_ips"][i]) + start + 1,
                 gene_name,
-                scores[round(peaks[1]['left_ips'][i]):round(peaks[1]['right_ips'][i])+1].sum(),
+                scores[
+                    round(peaks[1]["left_ips"][i]) : round(peaks[1]["right_ips"][i]) + 1
+                ].sum(),
                 strand,
             )
             for i in range(peak_num)
         ]
     )
 
-    filt_broad_peaks_in_gene = broad_peaks_in_gene[broad_peaks_in_gene[:,4].astype("float")>=min_peak_count]
+    filt_broad_peaks_in_gene = broad_peaks_in_gene[
+        broad_peaks_in_gene[:, 4].astype("float") >= min_peak_count
+    ]
 
     return (
         peaks_in_gene,
@@ -440,6 +446,7 @@ def getAllPeaks(
     X,
     rel_height,
     min_gene_count,
+    min_peak_count,
     threads,
     chunksize_factor,
     outfile_name,
@@ -525,6 +532,7 @@ def getAllPeaks(
                 X,
                 rel_height,
                 min_gene_count,
+                min_peak_count,
                 get_exon_annot(x, annot_exons),
                 annot_alt_features,
             )
@@ -591,7 +599,15 @@ def getBroadPeaks(
 
 
 def getSingleGenePeaks(
-    counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene, min_peak_count
+    counts_bed,
+    annot,
+    N,
+    X,
+    rel_height,
+    min_gene_count,
+    outfile_name,
+    my_gene,
+    min_peak_count,
 ):
     pho92_iclip = counts_bed
     annot = pd.read_table(
