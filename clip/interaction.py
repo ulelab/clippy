@@ -347,11 +347,12 @@ class DashApp:
         fig.update_xaxes(showgrid=False, zeroline=False, row=3, col=1, showticklabels=False, title={"text":"Clippy broad peaks", "standoff": 0.05})
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=3, col=1)
         fig.update_layout(xaxis_showticklabels=True)
+        plot_title = gene_name + " ; Total xlinks = " + str(self.gene_xlink_dicts[gene_name]["score"].sum()) if gene_name is not None else gene_name
         fig.update_layout(
             margin=dict(l=10, r=10, t=20, b=10),
             plot_bgcolor='rgba(0,0,0,0)',
             title={
-                'text': gene_name,
+                'text': plot_title,
                 'y':0.98,
                 'x':0.5,
                 'xanchor': 'center',
