@@ -5,6 +5,9 @@ from scipy.ndimage.filters import uniform_filter1d
 from scipy import stats
 import pybedtools
 import pandas as pd
+import matplotlib
+
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import argparse
 import sys
@@ -12,7 +15,7 @@ import clip.interaction
 from multiprocessing import Pool
 import re
 
-__version__ = "0.0.1"
+__version__ = "1.1.0"
 
 
 def main():
@@ -45,6 +48,7 @@ def main():
                 X,
                 rel_height,
                 min_gene_count,
+                min_peak_count,
                 threads,
                 chunksize_factor,
                 outfile_name,
@@ -228,7 +232,7 @@ def parse_arguments(input_arguments):
 
 
 def single_gene_get_peaks(
-    test, N, X, rel_height, min_gene_count, annot_exon, alt_features
+    test, N, X, rel_height, min_gene_count, min_peak_count, annot_exon, alt_features
 ):
     # Get the peaks for one gene
     # Now need to get an array of values
@@ -340,15 +344,22 @@ def single_gene_get_peaks(
                 round(peaks[1]["left_ips"][i]) + start,
                 round(peaks[1]["right_ips"][i]) + start + 1,
                 gene_name,
-                ".",
+                scores[
+                    round(peaks[1]["left_ips"][i]) : round(peaks[1]["right_ips"][i]) + 1
+                ].sum(),
                 strand,
             )
             for i in range(peak_num)
         ]
     )
+
+    filt_broad_peaks_in_gene = broad_peaks_in_gene[
+        broad_peaks_in_gene[:, 4].astype("float") >= min_peak_count
+    ]
+
     return (
         peaks_in_gene,
-        broad_peaks_in_gene,
+        filt_broad_peaks_in_gene,
         roll_mean_smoothed_scores,
         peaks,
         heights,
@@ -435,6 +446,7 @@ def getAllPeaks(
     X,
     rel_height,
     min_gene_count,
+    min_peak_count,
     threads,
     chunksize_factor,
     outfile_name,
@@ -520,6 +532,7 @@ def getAllPeaks(
                 X,
                 rel_height,
                 min_gene_count,
+                min_peak_count,
                 get_exon_annot(x, annot_exons),
                 annot_alt_features,
             )
@@ -535,6 +548,7 @@ def getAllPeaks(
                 X,
                 rel_height,
                 min_gene_count,
+                min_peak_count,
                 get_exon_annot(x, annot_exons),
                 annot_alt_features,
             )
@@ -585,7 +599,15 @@ def getBroadPeaks(
 
 
 def getSingleGenePeaks(
-    counts_bed, annot, N, X, rel_height, min_gene_count, outfile_name, my_gene
+    counts_bed,
+    annot,
+    N,
+    X,
+    rel_height,
+    min_gene_count,
+    outfile_name,
+    my_gene,
+    min_peak_count,
 ):
     pho92_iclip = counts_bed
     annot = pd.read_table(
@@ -653,7 +675,7 @@ def getSingleGenePeaks(
     )
 
     peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = single_gene_get_peaks(
-        goverlaps, N, X, rel_height, min_gene_count
+        goverlaps, N, X, rel_height, min_gene_count, min_peak_count
     )
 
     if not isinstance(peaks, np.ndarray):

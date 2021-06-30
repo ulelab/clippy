@@ -243,6 +243,29 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            dash_html.Label(
+                                                "Minimum counts per broad peak"
+                                            ),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="min-peak-count-slider",
+                                                        min=1,
+                                                        max=200,
+                                                        step=1,
+                                                        value=5,
+                                                        marks={1: "1", 200: "200",},
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
                                             dash_html.Label("Alternative features"),
                                             dash_html.Div(
                                                 [
@@ -278,6 +301,7 @@ class DashApp:
             Input("x-slider", "value"),
             Input("rel_height", "value"),
             Input("min-count-slider", "value"),
+            Input("min-peak-count-slider", "value"),
             Input("alt-features-input", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
@@ -312,6 +336,7 @@ class DashApp:
         X,
         rel_height,
         min_gene_count,
+        min_peak_count,
         alt_feature_search,
         current_figures,
     ):
@@ -380,6 +405,7 @@ class DashApp:
                     X,
                     rel_height,
                     min_gene_count,
+                    min_peak_count,
                     alt_feature_search,
                     current_figures,
                 )
@@ -392,6 +418,7 @@ class DashApp:
                     X,
                     rel_height,
                     min_gene_count,
+                    min_peak_count,
                     alt_feature_search,
                     current_figures,
                 )
@@ -406,6 +433,7 @@ class DashApp:
         X,
         rel_height,
         min_gene_count,
+        min_peak_count,
         alt_feature_search,
         current_figures,
     ):
@@ -438,6 +466,7 @@ class DashApp:
                 X,
                 rel_height,
                 min_gene_count,
+                min_peak_count,
                 self.gene_exon_dicts[gene_name],
                 annot_alt_features,
             )
@@ -544,6 +573,7 @@ class DashApp:
                 row=2,
                 col=1,
             )
+
             fig.add_shape(
                 type="line",
                 x0=0,
@@ -553,33 +583,57 @@ class DashApp:
                 line=dict(color="#cacaca", width=2),
                 row=2,
                 col=1,
+                layer="below",
             )
-        # add broad peaks as boxes
-        fig.add_trace(
-            plotlygo.Scatter(
-                x=np.array(
-                    [
+
+            # add arrow corresponding to gene strand
+            # get strand - how?????
+            direction = self.gene_xlink_dicts[gene_name]["strand"][0]
+            if direction == "+":
+                marksymb = "triangle-right"
+            else:
+                marksymb = "triangle-left"
+            fig.add_trace(
+                plotlygo.Scatter(
+                    x=np.array([max_value / 2, max_value / 4, max_value * 0.75]),
+                    y=np.array([0.5, 0.5, 0.5]),
+                    fill="toself",
+                    mode="markers",
+                    marker_symbol=marksymb,
+                    marker_size=20,
+                    marker_color="black",
+                    showlegend=False,
+                ),
+                row=2,
+                col=1,
+            )
+
+            # add broad peaks as boxes
+            fig.add_trace(
+                plotlygo.Scatter(
+                    x=np.array(
                         [
-                            peak_details[1]["left_ips"][idx],
-                            peak_details[1]["right_ips"][idx],
-                            peak_details[1]["right_ips"][idx],
-                            peak_details[1]["left_ips"][idx],
-                            None,
+                            [
+                                broad_peaks[idx][1].astype(float) - min_value,
+                                broad_peaks[idx][2].astype(float) - min_value,
+                                broad_peaks[idx][2].astype(float) - min_value,
+                                broad_peaks[idx][1].astype(float) - min_value,
+                                None,
+                            ]
+                            for idx in range(len(broad_peaks))
                         ]
-                        for idx in range(len(peak_details[0]))
-                    ]
-                ).flatten(),
-                y=np.array(
-                    [[0, 0, 1, 1, None] for idx in range(len(peak_details[0]))]
-                ).flatten(),
-                fill="toself",
-                line={"color": "darkorange"},
-                fillcolor="darkorange",
-                showlegend=False,
-            ),
-            row=3,
-            col=1,
-        )
+                    ).flatten(),
+                    y=np.array(
+                        [[0, 0, 1, 1, None] for idx in range(len(peak_details[0]))]
+                    ).flatten(),
+                    fill="toself",
+                    line={"color": "darkorange"},
+                    fillcolor="darkorange",
+                    showlegend=False,
+                ),
+                row=3,
+                col=1,
+            )
         # Remove axes from gene model figure and broad peaks track
         fig.update_xaxes(
             showgrid=False,
@@ -599,17 +653,24 @@ class DashApp:
         )
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=3, col=1)
         fig.update_layout(xaxis_showticklabels=True)
+        plot_title = (
+            gene_name
+            + " ; Total xlinks = "
+            + str(self.gene_xlink_dicts[gene_name]["score"].sum())
+            if gene_name is not None
+            else gene_name
+        )
         fig.update_layout(
             margin=dict(l=10, r=10, t=20, b=10),
             plot_bgcolor="rgba(0,0,0,0)",
             title={
-                "text": gene_name,
+                "text": plot_title,
                 "y": 0.98,
                 "x": 0.5,
                 "xanchor": "center",
                 "yanchor": "top",
             },
-            legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
+            legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": -0.5},
         )
         if len(roll_mean_smoothed_scores) > 0:
             mean_val = np.mean(roll_mean_smoothed_scores)
@@ -643,19 +704,25 @@ class DashApp:
                     x=peak_details[0],
                     y=[roll_mean_smoothed_scores[idx] for idx in peak_details[0]],
                     mode="markers",
+                    marker_size=12,
+                    marker_color="mediumvioletred",
+                    marker_line={"width": 2, "color": "darkslateblue"},
                     name="Narrow peaks",
                 ),
                 row=1,
                 col=1,
             )
-            fig.update_traces(
-                marker={
-                    "size": 12,
-                    "color": "mediumvioletred",
-                    "line": {"width": 2, "color": "darkslateblue"},
-                },
-                selector={"mode": "markers"},
-            )
+            # fig.update_traces(
+            #    marker={
+            #        "size": 12,
+            #        "color": "mediumvioletred",
+            #        "line": {
+            #            "width": 2,
+            #            "color": "darkslateblue"
+            #        }
+            #    },
+            #    selector={"mode": "markers"}
+            # )
 
         current_relayout_data = None
         if current_figures:

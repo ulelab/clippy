@@ -117,7 +117,7 @@ def test_single_gene_get_peaks_profiling(rootdir):
         )
     )
     arguments_list = [
-        (pd.DataFrame(y), 50, 1, 0.8, 5, clip.get_exon_annot(x, annot_exons), None)
+        (pd.DataFrame(y), 50, 1, 0.8, 5, 5, clip.get_exon_annot(x, annot_exons), None)
         for x, y in goverlaps.groupby("gene_name", as_index=False)
     ]
     pr = cProfile.Profile()
