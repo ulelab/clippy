@@ -16,6 +16,8 @@ top_x_search_results = 20
 name_delimiter = "; "
 gtf_delimiter = ";"
 gtf_attribute_filters = ["_name", "_id"]
+# Exposed here to allow for optimisation with regards to the xlinks saved
+max_window_size = 200
 
 
 class DashApp:
@@ -157,7 +159,7 @@ class DashApp:
                                                                 20,
                                                                 50,
                                                                 100,
-                                                                200,
+                                                                max_window_size,
                                                             ]
                                                         ],
                                                         id="n-select",
@@ -344,7 +346,11 @@ class DashApp:
         if len(gene_list) > 0:
             for gene in gene_list:
                 if not gene in self.gene_xlink_dicts:
-                    annot_gene = self.gene_annot.loc[self.gene_annot.gene_names == gene]
+                    annot_gene = self.gene_annot.loc[
+                        self.gene_annot.gene_names == gene
+                    ].copy()
+                    annot_gene.start -= max_window_size
+                    annot_gene.end += max_window_size
                     annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
                     self.gene_xlink_dicts[gene] = self.counts_bed.intersect(
                         annot_gene, s=True, wo=True
@@ -453,6 +459,64 @@ class DashApp:
                 annot_alt_features = clip.return_alt_features(
                     alt_feature_search, self.gene_annot.iloc[:, :-2],
                 )
+            annot_gene = self.gene_annot.loc[
+                self.gene_annot.gene_names == gene_name
+            ].copy()
+            annot_gene.start -= N
+            annot_gene.end += N
+            annot_gene_bed = pybedtools.BedTool.from_dataframe(annot_gene)
+            xlinks = (
+                pybedtools.BedTool.from_dataframe(
+                    pd.DataFrame.from_dict(
+                        {
+                            "chrom": self.gene_xlink_dicts[gene_name].chrom,
+                            "start": self.gene_xlink_dicts[gene_name].start,
+                            "end": self.gene_xlink_dicts[gene_name].end,
+                            "name": ".",
+                            "score": self.gene_xlink_dicts[gene_name].score,
+                            "strand": self.gene_xlink_dicts[gene_name].strand,
+                        }
+                    )
+                )
+                .intersect(annot_gene_bed, s=True, wo=True)
+                .to_dataframe(
+                    names=[
+                        "chrom",
+                        "start",
+                        "end",
+                        "name",
+                        "score",
+                        "strand",
+                        "chrom2",
+                        "source",
+                        "feature",
+                        "gene_start",
+                        "gene_stop",
+                        "nothing",
+                        "strand2",
+                        "nothing2",
+                        "attributes",
+                        "gene_id",
+                        "gene_name",
+                        "interval",
+                    ]
+                )
+                .drop(
+                    [
+                        "name",
+                        "chrom2",
+                        "nothing",
+                        "nothing2",
+                        "interval",
+                        "strand2",
+                        "source",
+                        "feature",
+                        "attributes",
+                        "gene_id",
+                    ],
+                    axis=1,
+                )
+            )
             (
                 peaks,
                 broad_peaks,
@@ -461,7 +525,7 @@ class DashApp:
                 heights,
                 prominences,
             ) = clip.single_gene_get_peaks(
-                self.gene_xlink_dicts[gene_name],
+                xlinks,
                 N,
                 X,
                 rel_height,
@@ -547,12 +611,13 @@ class DashApp:
         )
         # Add gene models
         if gene_name:
+            gene_start_minus_N = list(annot_gene.start)[0]
+            gene_end_plus_N = list(annot_gene.end)[0]
+
             starts = self.gene_exon_dicts[gene_name]["start"].to_numpy()
             ends = self.gene_exon_dicts[gene_name]["end"].to_numpy()
-            min_value = min(starts.min(), ends.min())
-            starts = starts - min_value
-            ends = ends - min_value
-            max_value = max(starts.max(), ends.max())
+            starts = starts - gene_start_minus_N
+            ends = ends - gene_start_minus_N
 
             fig.add_trace(
                 plotlygo.Scatter(
@@ -566,6 +631,7 @@ class DashApp:
                         [[0, 0, 1, 1, None] for idx in range(len(starts))]
                     ).flatten(),
                     fill="toself",
+                    mode="lines",
                     line={"color": "#cacaca"},
                     fillcolor="#cacaca",
                     showlegend=False,
@@ -576,9 +642,9 @@ class DashApp:
 
             fig.add_shape(
                 type="line",
-                x0=0,
+                x0=N,
                 y0=0.5,
-                x1=max_value,
+                x1=gene_end_plus_N - gene_start_minus_N - N,
                 y1=0.5,
                 line=dict(color="#cacaca", width=2),
                 row=2,
@@ -595,7 +661,13 @@ class DashApp:
                 marksymb = "triangle-left"
             fig.add_trace(
                 plotlygo.Scatter(
-                    x=np.array([max_value / 2, max_value / 4, max_value * 0.75]),
+                    x=np.array(
+                        [
+                            (gene_end_plus_N - gene_start_minus_N) * 0.25,
+                            (gene_end_plus_N - gene_start_minus_N) * 0.5,
+                            (gene_end_plus_N - gene_start_minus_N) * 0.75,
+                        ]
+                    ),
                     y=np.array([0.5, 0.5, 0.5]),
                     fill="toself",
                     mode="markers",
@@ -614,10 +686,10 @@ class DashApp:
                     x=np.array(
                         [
                             [
-                                broad_peaks[idx][1].astype(float) - min_value,
-                                broad_peaks[idx][2].astype(float) - min_value,
-                                broad_peaks[idx][2].astype(float) - min_value,
-                                broad_peaks[idx][1].astype(float) - min_value,
+                                broad_peaks[idx][1].astype(float) - gene_start_minus_N,
+                                broad_peaks[idx][2].astype(float) - gene_start_minus_N,
+                                broad_peaks[idx][2].astype(float) - gene_start_minus_N,
+                                broad_peaks[idx][1].astype(float) - gene_start_minus_N,
                                 None,
                             ]
                             for idx in range(len(broad_peaks))
@@ -627,6 +699,7 @@ class DashApp:
                         [[0, 0, 1, 1, None] for idx in range(len(peak_details[0]))]
                     ).flatten(),
                     fill="toself",
+                    mode="lines",
                     line={"color": "darkorange"},
                     fillcolor="darkorange",
                     showlegend=False,
