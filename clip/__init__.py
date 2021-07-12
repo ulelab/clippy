@@ -254,12 +254,13 @@ def single_gene_get_peaks(
 
     nucleotide_sets = [set(["intron"]) for i in range(stop - start)]
 
-    for index, row in annot_exon.iterrows():
-        for pos in range(row["start"] - 1, row["end"]):
-            zero_pos = pos - start
-            if "intron" in nucleotide_sets[zero_pos]:
-                nucleotide_sets[zero_pos].remove("intron")
-            nucleotide_sets[zero_pos].add("exon")
+    if isinstance(annot_exon, pd.DataFrame):
+        for index, row in annot_exon.iterrows():
+            for pos in range(row["start"] - 1, row["end"]):
+                zero_pos = pos - start
+                if "intron" in nucleotide_sets[zero_pos]:
+                    nucleotide_sets[zero_pos].remove("intron")
+                nucleotide_sets[zero_pos].add("exon")
 
     if alt_features:
         for feature_name, alt_features_annot in alt_features.items():
@@ -285,20 +286,35 @@ def single_gene_get_peaks(
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
 
-    mean_dict = {}
-    std_dict = {}
-
+    values_dict = {}
     for feature_name in feature_names:
         feature_values = roll_mean_smoothed_scores[
             [feature_name in i for i in nucleotide_sets]
         ]
-        feature_values = feature_values[np.logical_not(feature_values == 0.0)]
-        if len(feature_values) > 0:
-            mean_dict[feature_name] = np.mean(feature_values)
-            std_dict[feature_name] = np.std(feature_values)
+        # Removes zeros from the vectors, but not sure if this is a good idea
+        # Especially for calculating standard deviation
+        # feature_values = feature_values[np.logical_not(feature_values == 0.0)]
+        values_dict[feature_name] = feature_values
+
+    mean_dict = {}
+    std_dict = {}
+    for feature_name in feature_names:
+        if len(values_dict[feature_name]) > 0:
+            mean_dict[feature_name] = np.mean(values_dict[feature_name])
+            std_dict[feature_name] = np.std(values_dict[feature_name])
         else:
             mean_dict[feature_name] = 0.0
             std_dict[feature_name] = 0.0
+
+    # In the case that the intron mean is greater than the exon mean, use the
+    # entire gene for the threshold
+    if mean_dict["intron"] > mean_dict["exon"]:
+        mean_dict["exon"] = np.mean(
+            np.concatenate((values_dict["intron"], values_dict["exon"]))
+        )
+        std_dict["exon"] = np.std(
+            np.concatenate((values_dict["intron"], values_dict["exon"]))
+        )
 
     heights = np.array(
         [max([mean_dict[feature] for feature in pos]) for pos in nucleotide_sets]

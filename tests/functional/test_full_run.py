@@ -18,6 +18,7 @@ def test_full_run_multi_thread(rootdir, monkeypatch, tmp_path):
             os.path.join(tmp_path, "clippy"),
             "-t",
             str(os.cpu_count()),
+            "--no_exon_info",
         ],
     )
     clip.main()
@@ -42,6 +43,7 @@ def test_full_run_single_thread(rootdir, monkeypatch, tmp_path):
             os.path.join(tmp_path, "clippy"),
             "-t",
             str(1),
+            "--no_exon_info",
         ],
     )
     clip.main()
