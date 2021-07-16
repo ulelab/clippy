@@ -353,19 +353,38 @@ def single_gene_get_peaks(
         ]
     )
 
+    merged_broad_peaks = []
+
+    for j in range(peak_num):
+        new_peak = {
+            "start": round(peaks[1]["left_ips"][j]) + start,
+            "end": round(peaks[1]["right_ips"][j]) + start + 1,
+        }
+        added = False
+        for peak in merged_broad_peaks:
+            if ((peak["start"] <= new_peak["start"] and
+                new_peak["start"] <= peak["end"]) or
+                (peak["start"] <= new_peak["end"] and
+                new_peak["end"] <= peak["end"])):
+                peak["start"] = min(peak["start"], new_peak["start"])
+                peak["end"] = max(peak["end"], new_peak["end"])
+                added = True
+        if not added:
+            merged_broad_peaks.append(new_peak)
+
     broad_peaks_in_gene = np.array(
         [
             (
                 chrom,
-                round(peaks[1]["left_ips"][i]) + start,
-                round(peaks[1]["right_ips"][i]) + start + 1,
+                peak["start"],
+                peak["end"],
                 gene_name,
                 scores[
-                    round(peaks[1]["left_ips"][i]) : round(peaks[1]["right_ips"][i]) + 1
+                    peak["start"]-start : peak["end"]-start
                 ].sum(),
                 strand,
             )
-            for i in range(peak_num)
+            for peak in merged_broad_peaks
         ]
     )
 
