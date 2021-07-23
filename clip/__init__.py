@@ -35,6 +35,8 @@ def main():
         interactive,
         no_exon_info,
         alt_features,
+        up_ext,
+        down_ext,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
@@ -55,6 +57,8 @@ def main():
                 outfile_name,
                 no_exon_info,
                 alt_features,
+                up_ext,
+                down_ext,
             )
             outfile_name = outfile_name.replace(".bed", "_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
@@ -92,6 +96,9 @@ def main():
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
 
 
+def extend_gene_models(annotation, up_ext, down_ext):
+    annotation
+
 def parse_arguments(input_arguments):
     parser = argparse.ArgumentParser(description="Call CLIP peaks.")
     optional = parser._action_groups.pop()
@@ -116,6 +123,22 @@ def parse_arguments(input_arguments):
         default=50,
         nargs="?",
         help="rolling mean window size [DEFAULT 50]",
+    )
+    optional.add_argument(
+        "-up",
+        "--upstream_extension",
+        type=int,
+        default=0,
+        nargs="?",
+        help="upstream extension added to gene models [DEFAULT 0]",
+    )
+    optional.add_argument(
+        "-down",
+        "--downstream_extension",
+        type=int,
+        default=0,
+        nargs="?",
+        help="downstream extension added to gene models [DEFAULT 0]",
     )
     optional.add_argument(
         "-x",
@@ -229,11 +252,13 @@ def parse_arguments(input_arguments):
         args.interactive,
         args.no_exon_info,
         args.alt_features,
+        args.upstream_extension,
+        args.downstream_extension,
     )
 
 
 def single_gene_get_peaks(
-    test, N, X, rel_height, min_gene_count, min_peak_count, annot_exon, alt_features
+    test, N, X, rel_height, min_gene_count, min_peak_count, annot_exon, alt_features,
 ):
     # Get the peaks for one gene
     # Now need to get an array of values
@@ -488,6 +513,8 @@ def getAllPeaks(
     outfile_name,
     no_exon_info,
     alt_features,
+    up_ext,
+    down_ext,
 ):
     if threads > 1:
         pool = Pool(threads)
@@ -509,6 +536,12 @@ def getAllPeaks(
         comment="#",
     )
     annot_gene = annot[annot.feature_type == "gene"].copy(True)
+    # Extend the genes
+    annot_gene.loc[annot_gene.strand=="+", "start"] -= max(N, up_ext)
+    annot_gene.loc[annot_gene.strand=="+",   "end"] += max(N, down_ext)
+    annot_gene.loc[annot_gene.strand=="-", "start"] -= max(N, down_ext)
+    annot_gene.loc[annot_gene.strand=="-",   "end"] += max(N, up_ext)
+    annot_gene.loc[annot_gene.start<1, "start"] = 1
 
     # Set up exon information
     annot_exons = None

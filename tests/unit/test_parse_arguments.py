@@ -27,6 +27,8 @@ def test_minimal_argument():
         False,
         False,
         None,
+        0,
+        0,
     )
 
 
@@ -62,4 +64,6 @@ def test_optional_argument():
         True,
         False,
         None,
+        0,
+        0,
     )
