@@ -6,6 +6,7 @@ from scipy import stats
 import pybedtools
 import pandas as pd
 import matplotlib
+import tempfile
 
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -524,7 +525,30 @@ def getAllPeaks(
         annot_alt_features = return_alt_features(alt_features, annot_gene)
 
     ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
-    goverlaps = clip_bed.intersect(ang, s=True, wo=True).to_dataframe(
+    # Find regions of the genome which are overlapped by multiple features on
+    # the same strand and remove those crosslinks.
+    tmp_genome_file = tempfile.NamedTemporaryFile(mode="wt", delete=False)
+    for x, y in annot_gene.groupby('chrom', as_index=False):
+        tmp_genome_file.write("{}\t{}\n".format(x, max(y.end)))
+    tmp_genome_file.close()
+    overlapping_feature_dfs = []
+    for strand in ["+", "-"]:
+        genomecov = ang.genome_coverage(
+            bg=True,
+            strand=strand,
+            g=tmp_genome_file.name
+        ).to_dataframe()
+        genomecov = genomecov[genomecov.name>1].copy()
+        genomecov["score"] = genomecov.name
+        genomecov["strand"] = strand
+        overlapping_feature_dfs.append(genomecov)
+    overlapping_features = pybedtools.BedTool.from_dataframe(
+        pd.concat(overlapping_feature_dfs)
+    ).sort()
+
+    # Split crosslinks based on overlap with features
+    goverlaps = clip_bed.intersect(
+            ang, s=True, wo=True).to_dataframe(
         names=[
             "chrom",
             "start",
@@ -608,12 +632,14 @@ def getAllPeaks(
     all_peaks = pd.DataFrame(np.concatenate(all_peaks))
     all_peaks.to_csv(outfile_name, sep="\t", header=False, index=False)
     broad_peaks = pd.DataFrame(np.concatenate(broad_peaks))
+    filtered_broad_peaks = pybedtools.BedTool.from_dataframe(
+        broad_peaks).intersect(overlapping_features, v=True, s=True)
 
     all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks).sort()
     all_peaks_bed.saveas(outfile_name)
 
     print("Finished, written single nt peaks file.")
-    return (all_peaks_bed, pybedtools.BedTool.from_dataframe(broad_peaks))
+    return (all_peaks_bed, filtered_broad_peaks)
 
 
 def getBroadPeaks(
