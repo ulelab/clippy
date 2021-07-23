@@ -99,6 +99,7 @@ def main():
 def extend_gene_models(annotation, up_ext, down_ext):
     annotation
 
+
 def parse_arguments(input_arguments):
     parser = argparse.ArgumentParser(description="Call CLIP peaks.")
     optional = parser._action_groups.pop()
@@ -333,7 +334,7 @@ def single_gene_get_peaks(
             std_dict[feature_name] = 0.0
 
     # In the case that the intron mean is greater than the exon mean, use the
-    # entire gene for the threshold
+    #  entire gene for the threshold
     if mean_dict["intron"] > mean_dict["exon"]:
         mean_dict["exon"] = np.mean(
             np.concatenate((values_dict["intron"], values_dict["exon"]))
@@ -388,10 +389,9 @@ def single_gene_get_peaks(
         }
         added = False
         for peak in merged_broad_peaks:
-            if ((peak["start"] <= new_peak["start"] and
-                new_peak["start"] <= peak["end"]) or
-                (peak["start"] <= new_peak["end"] and
-                new_peak["end"] <= peak["end"])):
+            if (
+                peak["start"] <= new_peak["start"] and new_peak["start"] <= peak["end"]
+            ) or (peak["start"] <= new_peak["end"] and new_peak["end"] <= peak["end"]):
                 peak["start"] = min(peak["start"], new_peak["start"])
                 peak["end"] = max(peak["end"], new_peak["end"])
                 added = True
@@ -405,9 +405,7 @@ def single_gene_get_peaks(
                 peak["start"],
                 peak["end"],
                 gene_name,
-                scores[
-                    peak["start"]-start : peak["end"]-start
-                ].sum(),
+                scores[peak["start"] - start : peak["end"] - start].sum(),
                 strand,
             )
             for peak in merged_broad_peaks
@@ -537,11 +535,11 @@ def getAllPeaks(
     )
     annot_gene = annot[annot.feature_type == "gene"].copy(True)
     # Extend the genes
-    annot_gene.loc[annot_gene.strand=="+", "start"] -= max(N, up_ext)
-    annot_gene.loc[annot_gene.strand=="+",   "end"] += max(N, down_ext)
-    annot_gene.loc[annot_gene.strand=="-", "start"] -= max(N, down_ext)
-    annot_gene.loc[annot_gene.strand=="-",   "end"] += max(N, up_ext)
-    annot_gene.loc[annot_gene.start<1, "start"] = 1
+    annot_gene.loc[annot_gene.strand == "+", "start"] -= max(N, up_ext)
+    annot_gene.loc[annot_gene.strand == "+", "end"] += max(N, down_ext)
+    annot_gene.loc[annot_gene.strand == "-", "start"] -= max(N, down_ext)
+    annot_gene.loc[annot_gene.strand == "-", "end"] += max(N, up_ext)
+    annot_gene.loc[annot_gene.start < 1, "start"] = 1
 
     # Set up exon information
     annot_exons = None
@@ -561,17 +559,15 @@ def getAllPeaks(
     # Find regions of the genome which are overlapped by multiple features on
     # the same strand and remove those crosslinks.
     tmp_genome_file = tempfile.NamedTemporaryFile(mode="wt", delete=False)
-    for x, y in annot_gene.groupby('chrom', as_index=False):
+    for x, y in annot_gene.groupby("chrom", as_index=False):
         tmp_genome_file.write("{}\t{}\n".format(x, max(y.end)))
     tmp_genome_file.close()
     overlapping_feature_dfs = []
     for strand in ["+", "-"]:
         genomecov = ang.genome_coverage(
-            bg=True,
-            strand=strand,
-            g=tmp_genome_file.name
+            bg=True, strand=strand, g=tmp_genome_file.name
         ).to_dataframe()
-        genomecov = genomecov[genomecov.name>1].copy()
+        genomecov = genomecov[genomecov.name > 1].copy()
         genomecov["score"] = genomecov.name
         genomecov["strand"] = strand
         overlapping_feature_dfs.append(genomecov)
@@ -580,8 +576,7 @@ def getAllPeaks(
     ).sort()
 
     # Split crosslinks based on overlap with features
-    goverlaps = clip_bed.intersect(
-            ang, s=True, wo=True).to_dataframe(
+    goverlaps = clip_bed.intersect(ang, s=True, wo=True).to_dataframe(
         names=[
             "chrom",
             "start",
@@ -665,8 +660,9 @@ def getAllPeaks(
     all_peaks = pd.DataFrame(np.concatenate(all_peaks))
     all_peaks.to_csv(outfile_name, sep="\t", header=False, index=False)
     broad_peaks = pd.DataFrame(np.concatenate(broad_peaks))
-    filtered_broad_peaks = pybedtools.BedTool.from_dataframe(
-        broad_peaks).intersect(overlapping_features, v=True, s=True)
+    filtered_broad_peaks = pybedtools.BedTool.from_dataframe(broad_peaks).intersect(
+        overlapping_features, v=True, s=True
+    )
 
     all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks).sort()
     all_peaks_bed.saveas(outfile_name)
