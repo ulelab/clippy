@@ -17,7 +17,7 @@ name_delimiter = "; "
 gtf_delimiter = ";"
 gtf_attribute_filters = ["_name", "_id"]
 # Exposed here to allow for optimisation with regards to the xlinks saved
-max_window_size = 200
+max_window_size = 1000
 
 
 class DashApp:
@@ -159,7 +159,7 @@ class DashApp:
                                                                 20,
                                                                 50,
                                                                 100,
-                                                                max_window_size,
+                                                                200,
                                                             ]
                                                         ],
                                                         id="n-select",
@@ -281,6 +281,46 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            dash_html.Label("Upstream extension"),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="up-ext-slider",
+                                                        min=0,
+                                                        max=max_window_size,
+                                                        step=50,
+                                                        value=0,
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
+                                            dash_html.Label("Downstream extension"),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="down-ext-slider",
+                                                        min=0,
+                                                        max=max_window_size,
+                                                        step=50,
+                                                        value=0,
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
                                         ],
                                         className="card-body",
                                     ),
@@ -305,6 +345,8 @@ class DashApp:
             Input("min-count-slider", "value"),
             Input("min-peak-count-slider", "value"),
             Input("alt-features-input", "value"),
+            Input("up-ext-slider", "value"),
+            Input("down-ext-slider", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
         self.app.callback(
@@ -340,6 +382,8 @@ class DashApp:
         min_gene_count,
         min_peak_count,
         alt_feature_search,
+        up_ext,
+        down_ext,
         current_figures,
     ):
         # Subset the xlink BED file for each gene
@@ -413,6 +457,8 @@ class DashApp:
                     min_gene_count,
                     min_peak_count,
                     alt_feature_search,
+                    up_ext,
+                    down_ext,
                     current_figures,
                 )
             ]
@@ -426,6 +472,8 @@ class DashApp:
                     min_gene_count,
                     min_peak_count,
                     alt_feature_search,
+                    up_ext,
+                    down_ext,
                     current_figures,
                 )
                 for gene in gene_list
@@ -441,6 +489,8 @@ class DashApp:
         min_gene_count,
         min_peak_count,
         alt_feature_search,
+        up_ext,
+        down_ext,
         current_figures,
     ):
         # Perform the peak calling if the gene is valid
@@ -462,8 +512,19 @@ class DashApp:
             annot_gene = self.gene_annot.loc[
                 self.gene_annot.gene_names == gene_name
             ].copy()
-            annot_gene.start -= N
-            annot_gene.end += N
+            strand = list(annot_gene.strand)[0]
+            start_offset = None
+            end_offset = None
+            if strand == "+":
+                start_offset = max(N, up_ext)
+                end_offset = max(N, down_ext)
+            elif strand == "-":
+                start_offset = max(N, down_ext)
+                end_offset = max(N, up_ext)
+            annot_gene.loc[:, "start"] -= start_offset
+            annot_gene.loc[:, "end"] += end_offset
+            annot_gene.loc[annot_gene.start < 1, "start"] = 1
+
             annot_gene_bed = pybedtools.BedTool.from_dataframe(annot_gene)
             xlinks = (
                 pybedtools.BedTool.from_dataframe(
@@ -611,13 +672,13 @@ class DashApp:
         )
         # Add gene models
         if gene_name:
-            gene_start_minus_N = list(annot_gene.start)[0]
-            gene_end_plus_N = list(annot_gene.end)[0]
+            gene_start_minus_offset = list(annot_gene.start)[0]
+            gene_end_plus_offset = list(annot_gene.end)[0]
 
             starts = self.gene_exon_dicts[gene_name]["start"].to_numpy()
             ends = self.gene_exon_dicts[gene_name]["end"].to_numpy()
-            starts = starts - gene_start_minus_N
-            ends = ends - gene_start_minus_N
+            starts = starts - gene_start_minus_offset
+            ends = ends - gene_start_minus_offset
 
             fig.add_trace(
                 plotlygo.Scatter(
@@ -642,9 +703,9 @@ class DashApp:
 
             fig.add_shape(
                 type="line",
-                x0=N,
+                x0=start_offset,
                 y0=0.5,
-                x1=gene_end_plus_N - gene_start_minus_N - N,
+                x1=gene_end_plus_offset - gene_start_minus_offset - end_offset,
                 y1=0.5,
                 line=dict(color="#cacaca", width=2),
                 row=2,
@@ -663,9 +724,9 @@ class DashApp:
                 plotlygo.Scatter(
                     x=np.array(
                         [
-                            (gene_end_plus_N - gene_start_minus_N) * 0.25,
-                            (gene_end_plus_N - gene_start_minus_N) * 0.5,
-                            (gene_end_plus_N - gene_start_minus_N) * 0.75,
+                            (gene_end_plus_offset - gene_start_minus_offset) * 0.25,
+                            (gene_end_plus_offset - gene_start_minus_offset) * 0.5,
+                            (gene_end_plus_offset - gene_start_minus_offset) * 0.75,
                         ]
                     ),
                     y=np.array([0.5, 0.5, 0.5]),
@@ -686,10 +747,10 @@ class DashApp:
                     x=np.array(
                         [
                             [
-                                broad_peaks[idx][1].astype(float) - gene_start_minus_N,
-                                broad_peaks[idx][2].astype(float) - gene_start_minus_N,
-                                broad_peaks[idx][2].astype(float) - gene_start_minus_N,
-                                broad_peaks[idx][1].astype(float) - gene_start_minus_N,
+                                broad_peaks[idx][1].astype(float) - gene_start_minus_offset,
+                                broad_peaks[idx][2].astype(float) - gene_start_minus_offset,
+                                broad_peaks[idx][2].astype(float) - gene_start_minus_offset,
+                                broad_peaks[idx][1].astype(float) - gene_start_minus_offset,
                                 None,
                             ]
                             for idx in range(len(broad_peaks))
