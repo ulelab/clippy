@@ -321,6 +321,24 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Checklist(
+                                                        id="exon-intron-bool",
+                                                        options=[
+                                                            {
+                                                                "label": "Separate exon thresholds",
+                                                                "value": 1,
+                                                            }
+                                                        ],
+                                                        value=[1],
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
                                         ],
                                         className="card-body",
                                     ),
@@ -347,6 +365,7 @@ class DashApp:
             Input("alt-features-input", "value"),
             Input("up-ext-slider", "value"),
             Input("down-ext-slider", "value"),
+            Input("exon-intron-bool", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
         self.app.callback(
@@ -384,6 +403,7 @@ class DashApp:
         alt_feature_search,
         up_ext,
         down_ext,
+        exon_intron_bool,
         current_figures,
     ):
         # Subset the xlink BED file for each gene
@@ -459,6 +479,7 @@ class DashApp:
                     alt_feature_search,
                     up_ext,
                     down_ext,
+                    exon_intron_bool,
                     current_figures,
                 )
             ]
@@ -474,6 +495,7 @@ class DashApp:
                     alt_feature_search,
                     up_ext,
                     down_ext,
+                    exon_intron_bool,
                     current_figures,
                 )
                 for gene in gene_list
@@ -491,6 +513,7 @@ class DashApp:
         alt_feature_search,
         up_ext,
         down_ext,
+        exon_intron_bool,
         current_figures,
     ):
         # Perform the peak calling if the gene is valid
@@ -578,6 +601,9 @@ class DashApp:
                     axis=1,
                 )
             )
+            annot_exon = self.gene_exon_dicts[gene_name]
+            if len(exon_intron_bool) == 0:
+                annot_exon = None
             (
                 peaks,
                 broad_peaks,
@@ -592,7 +618,7 @@ class DashApp:
                 rel_height,
                 min_gene_count,
                 min_peak_count,
-                self.gene_exon_dicts[gene_name],
+                annot_exon,
                 annot_alt_features,
             )
             if not isinstance(peaks, np.ndarray):
@@ -747,10 +773,14 @@ class DashApp:
                     x=np.array(
                         [
                             [
-                                broad_peaks[idx][1].astype(float) - gene_start_minus_offset,
-                                broad_peaks[idx][2].astype(float) - gene_start_minus_offset,
-                                broad_peaks[idx][2].astype(float) - gene_start_minus_offset,
-                                broad_peaks[idx][1].astype(float) - gene_start_minus_offset,
+                                broad_peaks[idx][1].astype(float)
+                                - gene_start_minus_offset,
+                                broad_peaks[idx][2].astype(float)
+                                - gene_start_minus_offset,
+                                broad_peaks[idx][2].astype(float)
+                                - gene_start_minus_offset,
+                                broad_peaks[idx][1].astype(float)
+                                - gene_start_minus_offset,
                                 None,
                             ]
                             for idx in range(len(broad_peaks))
