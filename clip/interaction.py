@@ -27,6 +27,12 @@ class DashApp:
         self.gene_xlink_dicts = {}
         self.gene_exon_dicts = {}
         self.app = dash.Dash(__name__, external_stylesheets=[dash_bs.themes.BOOTSTRAP])
+        self.base_command_list = [
+            "./clip.py",
+            "-i", counts_bed.__dict__['fn'],
+            "-a", annot,
+            "-o", "OUTPUT_PREFIX"
+        ]
 
     def read_annot(self, annot):
         annot = pd.read_table(
@@ -92,6 +98,26 @@ class DashApp:
                             dash_html.H1("Clippy Interactive Parameter Search")
                         )
                     )
+                ),
+                dash_bs.Row(
+                    [
+                        dash_bs.Col(
+                            dash_html.H5("Run this on the command line with:"),
+                            lg=3
+                        ),
+                        dash_bs.Col(
+                            dash_html.Div(
+                                dash_html.Code(
+                                    "<clippy command>",
+                                    id="clippy-command",
+                                    style={"code": { "color": "#000000"}}
+                                ),
+                                className="alert alert-secondary",
+                                role="alert",
+                            ),
+                            lg=9
+                        )
+                    ]
                 ),
                 dash_bs.Row(
                     [
@@ -355,6 +381,7 @@ class DashApp:
     def setup_callbacks(self):
         self.app.callback(
             Output("gene-graphs", "children"),
+            Output("clippy-command", "children"),
             Output("graph-loading-indicator", "children"),
             Input("gene-select", "value"),
             Input("n-select", "value"),
@@ -500,7 +527,20 @@ class DashApp:
                 )
                 for gene in gene_list
             ]
-        return (figs, "Idle")
+        # Setup the command list
+        command_list = self.base_command_list[:]
+        command_list += ["-n", str(N)]
+        command_list += ["-up", str(up_ext)]
+        command_list += ["-down", str(down_ext)]
+        command_list += ["-x", str(X)]
+        command_list += ["-hc", str(rel_height)]
+        command_list += ["-mg", str(min_gene_count)]
+        command_list += ["-mb", str(min_peak_count)]
+        if alt_feature_search:
+            command_list += ["-alt", alt_feature_search]
+        if len(exon_intron_bool) == 0:
+            command_list.append("--no_exon_info")
+        return (figs, " ".join(command_list), "Idle")
 
     def peak_call_and_plot(
         self,
