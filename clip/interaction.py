@@ -29,9 +29,12 @@ class DashApp:
         self.app = dash.Dash(__name__, external_stylesheets=[dash_bs.themes.BOOTSTRAP])
         self.base_command_list = [
             "./clip.py",
-            "-i", counts_bed.__dict__['fn'],
-            "-a", annot,
-            "-o", "OUTPUT_PREFIX"
+            "-i",
+            counts_bed.__dict__["fn"],
+            "-a",
+            annot,
+            "-o",
+            "OUTPUT_PREFIX",
         ]
 
     def read_annot(self, annot):
@@ -102,21 +105,20 @@ class DashApp:
                 dash_bs.Row(
                     [
                         dash_bs.Col(
-                            dash_html.H5("Run this on the command line with:"),
-                            lg=3
+                            dash_html.H5("Run this on the command line with:"), lg=3
                         ),
                         dash_bs.Col(
                             dash_html.Div(
                                 dash_html.Code(
                                     "<clippy command>",
                                     id="clippy-command",
-                                    style={"code": { "color": "#000000"}}
+                                    style={"code": {"color": "#000000"}},
                                 ),
                                 className="alert alert-secondary",
                                 role="alert",
                             ),
-                            lg=9
-                        )
+                            lg=9,
+                        ),
                     ]
                 ),
                 dash_bs.Row(
@@ -469,7 +471,7 @@ class DashApp:
                     )
                     self.gene_exon_dicts[gene] = self.exon_annot.loc[
                         self.exon_annot.attributes.str.contains(
-                            self.gene_xlink_dicts[gene].gene_id[0]
+                            '"{}"'.format(self.gene_xlink_dicts[gene].gene_id[0])
                         ),
                         :,
                     ].copy()
@@ -588,7 +590,7 @@ class DashApp:
             annot_gene.loc[:, "end"] += end_offset
             annot_gene.loc[annot_gene.start < 1, "start"] = 1
 
-            annot_gene_bed = pybedtools.BedTool.from_dataframe(annot_gene)
+            annot_gene_bed = pybedtools.BedTool.from_dataframe(annot_gene.iloc[:, :9])
             xlinks = (
                 pybedtools.BedTool.from_dataframe(
                     pd.DataFrame.from_dict(
