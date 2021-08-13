@@ -498,6 +498,28 @@ def get_exon_annot(gene_name, annot_exons):
     return None
 
 
+def get_overlapping_feature_bed(input_annot_bed, input_annot):
+    # Find regions of the genome which are overlapped by multiple features on
+    # the same strand and remove those crosslinks.
+    tmp_genome_file = tempfile.NamedTemporaryFile(mode="wt", delete=False)
+    for x, y in input_annot.groupby("chrom", as_index=False):
+        tmp_genome_file.write("{}\t{}\n".format(x, max(y.end)))
+    tmp_genome_file.close()
+    overlapping_feature_dfs = []
+    for strand in ["+", "-"]:
+        genomecov = input_annot_bed.genome_coverage(
+            bg=True, strand=strand, g=tmp_genome_file.name
+        ).to_dataframe()
+        if len(genomecov) > 0:
+            genomecov = genomecov[genomecov.name > 1].copy()
+            genomecov["score"] = genomecov.name
+            genomecov["strand"] = strand
+            overlapping_feature_dfs.append(genomecov)
+    if len(overlapping_feature_dfs) == 0:
+        return None
+    return pybedtools.BedTool.from_dataframe(pd.concat(overlapping_feature_dfs)).sort()
+
+
 def getAllPeaks(
     counts_bed,
     annot,
@@ -555,28 +577,12 @@ def getAllPeaks(
     if alt_features:
         annot_alt_features = return_alt_features(alt_features, annot_gene)
 
-    ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
-    # Find regions of the genome which are overlapped by multiple features on
-    # the same strand and remove those crosslinks.
-    tmp_genome_file = tempfile.NamedTemporaryFile(mode="wt", delete=False)
-    for x, y in annot_gene.groupby("chrom", as_index=False):
-        tmp_genome_file.write("{}\t{}\n".format(x, max(y.end)))
-    tmp_genome_file.close()
-    overlapping_feature_dfs = []
-    for strand in ["+", "-"]:
-        genomecov = ang.genome_coverage(
-            bg=True, strand=strand, g=tmp_genome_file.name
-        ).to_dataframe()
-        genomecov = genomecov[genomecov.name > 1].copy()
-        genomecov["score"] = genomecov.name
-        genomecov["strand"] = strand
-        overlapping_feature_dfs.append(genomecov)
-    overlapping_features = pybedtools.BedTool.from_dataframe(
-        pd.concat(overlapping_feature_dfs)
-    ).sort()
+    annot_bed = pybedtools.BedTool.from_dataframe(annot_gene).sort()
+
+    overlapping_features = get_overlapping_feature_bed(annot_bed, annot_gene)
 
     # Split crosslinks based on overlap with features
-    goverlaps = clip_bed.intersect(ang, s=True, wo=True).to_dataframe(
+    goverlaps = clip_bed.intersect(annot_bed, s=True, wo=True).to_dataframe(
         names=[
             "chrom",
             "start",
@@ -660,9 +666,14 @@ def getAllPeaks(
     all_peaks = pd.DataFrame(np.concatenate(all_peaks))
     all_peaks.to_csv(outfile_name, sep="\t", header=False, index=False)
     broad_peaks = pd.DataFrame(np.concatenate(broad_peaks))
-    filtered_broad_peaks = pybedtools.BedTool.from_dataframe(broad_peaks).intersect(
-        overlapping_features, v=True, s=True
-    )
+
+    filtered_broad_peaks = None
+    if overlapping_features is None:
+        filtered_broad_peaks = pybedtools.BedTool.from_dataframe(broad_peaks)
+    else:
+        filtered_broad_peaks = pybedtools.BedTool.from_dataframe(broad_peaks).intersect(
+            overlapping_features, v=True, s=True
+        )
 
     all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks).sort()
     all_peaks_bed.saveas(outfile_name)

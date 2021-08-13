@@ -26,6 +26,7 @@ class DashApp:
         self.counts_bed = counts_bed
         self.gene_xlink_dicts = {}
         self.gene_exon_dicts = {}
+        self.gene_overlap_dict = {}
         self.app = dash.Dash(__name__, external_stylesheets=[dash_bs.themes.BOOTSTRAP])
         self.base_command_list = [
             "./clip.py",
@@ -421,6 +422,24 @@ class DashApp:
         ]
         return return_options
 
+    def get_maximal_overlaps(self, gene):
+        gene_annot_expanded = self.gene_annot.copy(True)
+        gene_annot_expanded.loc[:, "start"] -= max_window_size
+        gene_annot_expanded.loc[:, "end"] += max_window_size
+        gene_annot_expanded.loc[gene_annot_expanded.start < 1, "start"] = 1
+        expanded_gene = pybedtools.BedTool.from_dataframe(
+            gene_annot_expanded.loc[gene_annot_expanded.gene_names == gene].iloc[:, :9]
+        ).sort()
+        expanded_all = pybedtools.BedTool.from_dataframe(
+            gene_annot_expanded.iloc[:, :9]
+        ).sort()
+        overlaps = expanded_all.intersect(expanded_gene, s=True, wa=True).to_dataframe()
+        return self.gene_annot.loc[
+            self.gene_annot.gene_names.isin(
+                self.format_gene_list(overlaps.attributes.tolist())
+            )
+        ].copy(True)
+
     def update_figures(
         self,
         gene_list,
@@ -496,6 +515,7 @@ class DashApp:
                         axis=1,
                         inplace=True,
                     )
+                    self.gene_overlap_dict[gene] = self.get_maximal_overlaps(gene)
         if len(gene_list) == 0:
             figs = [
                 self.peak_call_and_plot(
@@ -577,6 +597,7 @@ class DashApp:
             annot_gene = self.gene_annot.loc[
                 self.gene_annot.gene_names == gene_name
             ].copy()
+            annot_overlaps = self.gene_overlap_dict[gene_name].copy()
             strand = list(annot_gene.strand)[0]
             start_offset = None
             end_offset = None
@@ -586,10 +607,10 @@ class DashApp:
             elif strand == "-":
                 start_offset = max(N, down_ext)
                 end_offset = max(N, up_ext)
-            annot_gene.loc[:, "start"] -= start_offset
-            annot_gene.loc[:, "end"] += end_offset
-            annot_gene.loc[annot_gene.start < 1, "start"] = 1
-
+            for annot_df in [annot_gene, annot_overlaps]:
+                annot_df.loc[:, "start"] -= start_offset
+                annot_df.loc[:, "end"] += end_offset
+                annot_df.loc[annot_df.start < 1, "start"] = 1
             annot_gene_bed = pybedtools.BedTool.from_dataframe(annot_gene.iloc[:, :9])
             xlinks = (
                 pybedtools.BedTool.from_dataframe(
@@ -809,23 +830,39 @@ class DashApp:
                 col=1,
             )
 
+            overlapping_features = clip.get_overlapping_feature_bed(
+                pybedtools.BedTool.from_dataframe(annot_overlaps.iloc[:, :9]).sort(),
+                annot_overlaps,
+            )
+
+            filtered_broad_peaks = None
+            if overlapping_features is None:
+                filtered_broad_peaks = broad_peaks
+            else:
+                filtered_broad_peaks = (
+                    pybedtools.BedTool.from_dataframe(pd.DataFrame(broad_peaks))
+                    .intersect(overlapping_features, v=True, s=True)
+                    .to_dataframe()
+                    .to_numpy()
+                )
+
             # add broad peaks as boxes
             fig.add_trace(
                 plotlygo.Scatter(
                     x=np.array(
                         [
                             [
-                                broad_peaks[idx][1].astype(float)
+                                float(filtered_broad_peaks[idx][1])
                                 - gene_start_minus_offset,
-                                broad_peaks[idx][2].astype(float)
+                                float(filtered_broad_peaks[idx][2])
                                 - gene_start_minus_offset,
-                                broad_peaks[idx][2].astype(float)
+                                float(filtered_broad_peaks[idx][2])
                                 - gene_start_minus_offset,
-                                broad_peaks[idx][1].astype(float)
+                                float(filtered_broad_peaks[idx][1])
                                 - gene_start_minus_offset,
                                 None,
                             ]
-                            for idx in range(len(broad_peaks))
+                            for idx in range(len(filtered_broad_peaks))
                         ]
                     ).flatten(),
                     y=np.array(
