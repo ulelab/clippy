@@ -37,6 +37,7 @@ def main():
         alt_features,
         up_ext,
         down_ext,
+        genome_file,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
@@ -59,6 +60,7 @@ def main():
                 alt_features,
                 up_ext,
                 down_ext,
+                genome_file,
             )
             outfile_name = outfile_name.replace(".bed", "_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
@@ -112,10 +114,20 @@ def parse_arguments(input_arguments):
         help="bed file containing crosslink counts at each position",
     )
     required.add_argument(
-        "-o", "--outputprefix", type=str, required=True, help="prefix for output files"
+        "-o", "--outputprefix", type=str, required=True, help="prefix for output files",
     )
     required.add_argument(
-        "-a", "--annot", type=str, required=True, help="gtf annotation file"
+        "-a", "--annot", type=str, required=True, help="gtf annotation file",
+    )
+    required.add_argument(
+        "-g",
+        "--genome_file",
+        type=str,
+        required=True,
+        help=(
+            "genome file containing chromosome lengths, used by BEDTools for "
+            "genomic operations"
+        ),
     )
     optional.add_argument(
         "-n",
@@ -174,7 +186,7 @@ def parse_arguments(input_arguments):
         help="min counts per broad peak [DEFAULT 5]",
     )
     optional.add_argument(
-        "-g",
+        "-m",
         "--mygene",
         type=str,
         nargs="?",
@@ -255,6 +267,7 @@ def parse_arguments(input_arguments):
         args.alt_features,
         args.upstream_extension,
         args.downstream_extension,
+        args.genome_file,
     )
 
 
@@ -498,17 +511,13 @@ def get_exon_annot(gene_name, annot_exons):
     return None
 
 
-def get_overlapping_feature_bed(input_annot_bed, input_annot):
+def get_overlapping_feature_bed(input_annot_bed, genome_file):
     # Find regions of the genome which are overlapped by multiple features on
     # the same strand and remove those crosslinks.
-    tmp_genome_file = tempfile.NamedTemporaryFile(mode="wt", delete=False)
-    for x, y in input_annot.groupby("chrom", as_index=False):
-        tmp_genome_file.write("{}\t{}\n".format(x, max(y.end)))
-    tmp_genome_file.close()
     overlapping_feature_dfs = []
     for strand in ["+", "-"]:
         genomecov = input_annot_bed.genome_coverage(
-            bg=True, strand=strand, g=tmp_genome_file.name
+            bg=True, strand=strand, g=genome_file
         ).to_dataframe()
         if len(genomecov) > 0:
             genomecov = genomecov[genomecov.name > 1].copy()
@@ -535,6 +544,7 @@ def getAllPeaks(
     alt_features,
     up_ext,
     down_ext,
+    genome_file,
 ):
     if threads > 1:
         pool = Pool(threads)
@@ -579,7 +589,7 @@ def getAllPeaks(
 
     annot_bed = pybedtools.BedTool.from_dataframe(annot_gene).sort()
 
-    overlapping_features = get_overlapping_feature_bed(annot_bed, annot_gene)
+    overlapping_features = get_overlapping_feature_bed(annot_bed, genome_file)
 
     # Split crosslinks based on overlap with features
     goverlaps = clip_bed.intersect(annot_bed, s=True, wo=True).to_dataframe(
