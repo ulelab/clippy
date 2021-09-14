@@ -21,7 +21,8 @@ max_window_size = 1000
 
 
 class DashApp:
-    def __init__(self, counts_bed, annot):
+    def __init__(self, counts_bed, annot, genome_file):
+        self.genome_file = genome_file
         self.read_annot(annot)
         self.counts_bed = counts_bed
         self.gene_xlink_dicts = {}
@@ -34,6 +35,8 @@ class DashApp:
             counts_bed.__dict__["fn"],
             "-a",
             annot,
+            "-g",
+            genome_file,
             "-o",
             "OUTPUT_PREFIX",
         ]
@@ -65,6 +68,13 @@ class DashApp:
         # Import exon information
         print("Importing exon information...")
         self.exon_annot = annot.loc[annot.feature_type == "exon", :].copy()
+        # Create maximal flanks
+        self.maximal_flanks = clip.get_flanking_regions(
+            pybedtools.BedTool.from_dataframe(self.gene_annot.iloc[:, :-2]).sort(),
+            self.genome_file,
+            max_window_size,
+            max_window_size,
+        )
 
     def format_gene_list(self, raw_gene_list, patterns=None):
         return [
@@ -422,23 +432,48 @@ class DashApp:
         ]
         return return_options
 
-    def get_maximal_overlaps(self, gene):
-        gene_annot_expanded = self.gene_annot.copy(True)
-        gene_annot_expanded.loc[:, "start"] -= max_window_size
-        gene_annot_expanded.loc[:, "end"] += max_window_size
-        gene_annot_expanded.loc[gene_annot_expanded.start < 1, "start"] = 1
-        expanded_gene = pybedtools.BedTool.from_dataframe(
-            gene_annot_expanded.loc[gene_annot_expanded.gene_names == gene].iloc[:, :9]
+    def get_maximal_overlapping_genes(self, gene):
+        """
+        Gets the genes which, with maximal flank sizes, are overlapping the
+        gene of interest. By getting all genes at this extreme, it makes
+        operations later on more efficient as they don't have to be done for
+        all genes, just the gene of intereract and any overlapping
+        """
+        # Merge all gene annotation with all maximal flanks, calculated when the
+        # Dash app was initiated
+        annot_bed_with_flanks = (
+            pybedtools.BedTool.from_dataframe(self.gene_annot.iloc[:, :9])
+            .cat(self.maximal_flanks, postmerge=False)
+            .sort()
+        )
+        # Convert to a pandas dataframe, and add gene_id and gene_names
+        annot_bed_with_flanks_df = annot_bed_with_flanks.to_dataframe()
+        annot_bed_with_flanks_df.loc[:, "gene_id"] = self.format_gene_list(
+            annot_bed_with_flanks_df.attributes.tolist(), ["gene_id"]
+        )
+        annot_bed_with_flanks_df.loc[:, "gene_names"] = self.format_gene_list(
+            annot_bed_with_flanks_df.attributes.tolist()
+        )
+        # Select the gene and flanks of the gene of interest and convert to
+        # Bedtool object
+        gene_with_maximal_flanks = pybedtools.BedTool.from_dataframe(
+            annot_bed_with_flanks_df.loc[
+                annot_bed_with_flanks_df.gene_names == gene
+            ].iloc[:, :9]
         ).sort()
-        expanded_all = pybedtools.BedTool.from_dataframe(
-            gene_annot_expanded.iloc[:, :9]
-        ).sort()
-        overlaps = expanded_all.intersect(expanded_gene, s=True, wa=True).to_dataframe()
-        return self.gene_annot.loc[
-            self.gene_annot.gene_names.isin(
-                self.format_gene_list(overlaps.attributes.tolist())
-            )
-        ].copy(True)
+        # Find the genes and flanks which overlap with the gene of interest
+        maximal_flank_overlaps = annot_bed_with_flanks.intersect(
+            gene_with_maximal_flanks, s=True, wa=True
+        ).to_dataframe()
+        # Return the gene_annot of overlapping genes
+        return (
+            gene_with_maximal_flanks,
+            self.gene_annot.loc[
+                self.gene_annot.gene_names.isin(
+                    self.format_gene_list(maximal_flank_overlaps.attributes.tolist())
+                )
+            ].copy(True),
+        )
 
     def update_figures(
         self,
@@ -458,14 +493,22 @@ class DashApp:
         if len(gene_list) > 0:
             for gene in gene_list:
                 if not gene in self.gene_xlink_dicts:
-                    annot_gene = self.gene_annot.loc[
-                        self.gene_annot.gene_names == gene
-                    ].copy()
-                    annot_gene.start -= max_window_size
-                    annot_gene.end += max_window_size
-                    annot_gene = pybedtools.BedTool.from_dataframe(annot_gene)
+                    # If the gene has been selected for the first time (e.g.
+                    # the user hasn't searched for it before) then add the gene
+                    # to the various data structures
+
+                    # Get the gene with maximal flanks and set the overlap
+                    # dictionary entry. The latter stores genes which can
+                    # potentially overlap the gene if the flanks are large
+                    # enough
+                    (
+                        gene_with_maximal_flanks,
+                        self.gene_overlap_dict[gene],
+                    ) = self.get_maximal_overlapping_genes(gene)
+                    # Find the crosslinks which overlap the gene with maximal
+                    # flanks
                     self.gene_xlink_dicts[gene] = self.counts_bed.intersect(
-                        annot_gene, s=True, wo=True
+                        gene_with_maximal_flanks, s=True, wo=True
                     ).to_dataframe(
                         names=[
                             "chrom",
@@ -483,15 +526,15 @@ class DashApp:
                             "strand2",
                             "nothing2",
                             "attributes",
-                            "gene_id",
-                            "gene_name",
                             "interval",
                         ]
                     )
+                    # Find the gene's exons
+                    gene_id = self.format_gene_list(
+                        self.gene_xlink_dicts[gene].attributes.tolist(), ["gene_id"],
+                    )[0]
                     self.gene_exon_dicts[gene] = self.exon_annot.loc[
-                        self.exon_annot.attributes.str.contains(
-                            '"{}"'.format(self.gene_xlink_dicts[gene].gene_id[0])
-                        ),
+                        self.exon_annot.attributes.str.contains('"{}"'.format(gene_id)),
                         :,
                     ].copy()
                     self.gene_exon_dicts[gene].loc[
@@ -499,6 +542,7 @@ class DashApp:
                     ] = self.format_gene_list(
                         self.gene_exon_dicts[gene].attributes.tolist()
                     )
+                    # Drop unnecessary columns from the crosslink table
                     self.gene_xlink_dicts[gene].drop(
                         [
                             "name",
@@ -510,12 +554,10 @@ class DashApp:
                             "source",
                             "feature",
                             "attributes",
-                            "gene_id",
                         ],
                         axis=1,
                         inplace=True,
                     )
-                    self.gene_overlap_dict[gene] = self.get_maximal_overlaps(gene)
         if len(gene_list) == 0:
             figs = [
                 self.peak_call_and_plot(
@@ -597,21 +639,46 @@ class DashApp:
             annot_gene = self.gene_annot.loc[
                 self.gene_annot.gene_names == gene_name
             ].copy()
-            annot_overlaps = self.gene_overlap_dict[gene_name].copy()
-            strand = list(annot_gene.strand)[0]
-            start_offset = None
-            end_offset = None
-            if strand == "+":
-                start_offset = max(N, up_ext)
-                end_offset = max(N, down_ext)
-            elif strand == "-":
-                start_offset = max(N, down_ext)
-                end_offset = max(N, up_ext)
-            for annot_df in [annot_gene, annot_overlaps]:
-                annot_df.loc[:, "start"] -= start_offset
-                annot_df.loc[:, "end"] += end_offset
-                annot_df.loc[annot_df.start < 1, "start"] = 1
-            annot_gene_bed = pybedtools.BedTool.from_dataframe(annot_gene.iloc[:, :9])
+            assert len(annot_gene) == 1
+
+            # quoting=3 is necessary here has otherwise pybedtools double quotes
+            # the attribute field, causing the attribute matching to fail. I
+            # think this is a bug in pybedtools, caused by it using "to_csv" to
+            # create the file read by BedTools
+            gene_flanks_bed = clip.get_flanking_regions(
+                pybedtools.BedTool.from_dataframe(
+                    self.gene_overlap_dict[gene_name].iloc[:, :9], quoting=3
+                ),
+                self.genome_file,
+                max(N, up_ext),
+                max(N, down_ext),
+            )
+
+            # Filters for the flanks which match the gene of interest
+            def attributes_match(interval):
+                if interval.fields[8] == annot_gene.attributes.iloc[0]:
+                    return interval
+
+            annot_gene_bed = (
+                pybedtools.BedTool.from_dataframe(annot_gene.iloc[:, :9])
+                .cat(gene_flanks_bed.each(attributes_match).saveas(), postmerge=False)
+                .sort()
+            )
+
+            gene_with_flanks_df = annot_gene_bed.to_dataframe(
+                names=[
+                    "chrom",
+                    "source",
+                    "feature_type",
+                    "start",
+                    "end",
+                    "score",
+                    "strand",
+                    "frame",
+                    "attributes",
+                ],
+            )
+
             xlinks = (
                 pybedtools.BedTool.from_dataframe(
                     pd.DataFrame.from_dict(
@@ -643,8 +710,6 @@ class DashApp:
                         "strand2",
                         "nothing2",
                         "attributes",
-                        "gene_id",
-                        "gene_name",
                         "interval",
                     ]
                 )
@@ -659,11 +724,11 @@ class DashApp:
                         "source",
                         "feature",
                         "attributes",
-                        "gene_id",
                     ],
                     axis=1,
                 )
             )
+            xlinks.loc[:, "gene_name"] = gene_name
             annot_exon = self.gene_exon_dicts[gene_name]
             if len(exon_intron_bool) == 0:
                 annot_exon = None
@@ -683,6 +748,7 @@ class DashApp:
                 min_peak_count,
                 annot_exon,
                 annot_alt_features,
+                gene_with_flanks_df,
             )
             if not isinstance(peaks, np.ndarray):
                 (
@@ -761,24 +827,33 @@ class DashApp:
         )
         # Add gene models
         if gene_name:
-            gene_start_minus_offset = list(annot_gene.start)[0]
-            gene_end_plus_offset = list(annot_gene.end)[0]
+            flank_start = min(gene_with_flanks_df.start)
+            flank_stop = max(gene_with_flanks_df.end)
 
-            starts = self.gene_exon_dicts[gene_name]["start"].to_numpy()
-            ends = self.gene_exon_dicts[gene_name]["end"].to_numpy()
-            starts = starts - gene_start_minus_offset
-            ends = ends - gene_start_minus_offset
+            gene_start = annot_gene.start.iloc[0]
+            gene_stop = annot_gene.end.iloc[0]
+
+            exon_starts = self.gene_exon_dicts[gene_name]["start"].to_numpy()
+            exon_ends = self.gene_exon_dicts[gene_name]["end"].to_numpy()
+            exon_starts = exon_starts - flank_start
+            exon_ends = exon_ends - flank_start
 
             fig.add_trace(
                 plotlygo.Scatter(
                     x=np.array(
                         [
-                            [starts[idx], ends[idx], ends[idx], starts[idx], None]
-                            for idx in range(len(starts))
+                            [
+                                exon_starts[idx],
+                                exon_ends[idx],
+                                exon_ends[idx],
+                                exon_starts[idx],
+                                None,
+                            ]
+                            for idx in range(len(exon_starts))
                         ]
                     ).flatten(),
                     y=np.array(
-                        [[0, 0, 1, 1, None] for idx in range(len(starts))]
+                        [[0, 0, 1, 1, None] for idx in range(len(exon_starts))]
                     ).flatten(),
                     fill="toself",
                     mode="lines",
@@ -792,9 +867,9 @@ class DashApp:
 
             fig.add_shape(
                 type="line",
-                x0=start_offset,
+                x0=gene_start - flank_start,
                 y0=0.5,
-                x1=gene_end_plus_offset - gene_start_minus_offset - end_offset,
+                x1=gene_stop - flank_start,
                 y1=0.5,
                 line=dict(color="#cacaca", width=2),
                 row=2,
@@ -813,9 +888,11 @@ class DashApp:
                 plotlygo.Scatter(
                     x=np.array(
                         [
-                            (gene_end_plus_offset - gene_start_minus_offset) * 0.25,
-                            (gene_end_plus_offset - gene_start_minus_offset) * 0.5,
-                            (gene_end_plus_offset - gene_start_minus_offset) * 0.75,
+                            (gene_start - flank_start)
+                            + (gene_stop - gene_start) * 0.25,
+                            (gene_start - flank_start) + (gene_stop - gene_start) * 0.5,
+                            (gene_start - flank_start)
+                            + (gene_stop - gene_start) * 0.75,
                         ]
                     ),
                     y=np.array([0.5, 0.5, 0.5]),
@@ -830,11 +907,20 @@ class DashApp:
                 col=1,
             )
 
-            overlapping_features = clip.get_overlapping_feature_bed(
-                pybedtools.BedTool.from_dataframe(annot_overlaps.iloc[:, :9]).sort(),
-                annot_overlaps,
+            # Create a BEDTool of the nearby genes and their flanks
+            genes_and_flanks_bed = (
+                pybedtools.BedTool.from_dataframe(
+                    self.gene_overlap_dict[gene_name].iloc[:, :9]
+                )
+                .cat(gene_flanks_bed, postmerge=False)
+                .sort()
             )
-
+            # Find the overlaps these features have
+            overlapping_features = clip.get_overlapping_feature_bed(
+                genes_and_flanks_bed, self.genome_file,
+            )
+            # Filter out the broad peaks which overlap these regions of gene
+            # overlap
             filtered_broad_peaks = None
             if overlapping_features is None:
                 filtered_broad_peaks = broad_peaks
@@ -852,14 +938,10 @@ class DashApp:
                     x=np.array(
                         [
                             [
-                                float(filtered_broad_peaks[idx][1])
-                                - gene_start_minus_offset,
-                                float(filtered_broad_peaks[idx][2])
-                                - gene_start_minus_offset,
-                                float(filtered_broad_peaks[idx][2])
-                                - gene_start_minus_offset,
-                                float(filtered_broad_peaks[idx][1])
-                                - gene_start_minus_offset,
+                                float(filtered_broad_peaks[idx][1]) - flank_start,
+                                float(filtered_broad_peaks[idx][2]) - flank_start,
+                                float(filtered_broad_peaks[idx][2]) - flank_start,
+                                float(filtered_broad_peaks[idx][1]) - flank_start,
                                 None,
                             ]
                             for idx in range(len(filtered_broad_peaks))

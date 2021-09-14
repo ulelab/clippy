@@ -42,7 +42,7 @@ def main():
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
-        app = clip.interaction.DashApp(counts_bed, annot)
+        app = clip.interaction.DashApp(counts_bed, annot, genome_file)
         app.run()
     else:
         if my_gene is None:
@@ -97,10 +97,6 @@ def main():
                 + "_broadPeaks.bed"
             )
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
-
-
-def extend_gene_models(annotation, up_ext, down_ext):
-    annotation
 
 
 def parse_arguments(input_arguments):
@@ -530,8 +526,9 @@ def get_overlapping_feature_bed(input_annot_bed, genome_file):
     for strand in ["+", "-"]:
         genomecov = input_annot_bed.genome_coverage(
             bg=True, strand=strand, g=genome_file
-        ).to_dataframe()
-        if len(genomecov) > 0:
+        )
+        if genomecov.count() > 0:
+            genomecov = genomecov.to_dataframe()
             genomecov = genomecov[genomecov.name > 1].copy()
             genomecov["score"] = genomecov.name
             genomecov["strand"] = strand
