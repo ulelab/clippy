@@ -312,25 +312,26 @@ def single_gene_get_peaks(
 
     if alt_features:
         for feature_name, alt_features_annot in alt_features.items():
-            threshold_overrides = (
-                pybedtools.BedTool.from_dataframe(alt_features_annot)
-                .intersect(
-                    pybedtools.BedTool(
-                        "\t".join([chrom, str(start), str(stop), "gene", ".", strand]),
-                        from_string=True,
-                    ),
-                    s=True,
+            if len(alt_features_annot) > 0:
+                threshold_overrides = (
+                    pybedtools.BedTool.from_dataframe(alt_features_annot)
+                    .intersect(
+                        pybedtools.BedTool(
+                            "\t".join([chrom, str(start), str(stop), "gene", ".", strand]),
+                            from_string=True,
+                        ),
+                        s=True,
+                    )
+                    .to_dataframe()
                 )
-                .to_dataframe()
-            )
-            for index, row in threshold_overrides.iterrows():
-                for pos in range(row["start"] - 1, row["end"]):
-                    zero_pos = pos - start
-                    for name in ["intron", "exon"]:
-                        if name in nucleotide_sets[zero_pos]:
-                            nucleotide_sets[zero_pos].remove(name)
-                    nucleotide_sets[zero_pos].add(feature_name)
-                    feature_names.add(feature_name)
+                for index, row in threshold_overrides.iterrows():
+                    for pos in range(row["start"] - 1, row["end"]):
+                        zero_pos = pos - start
+                        for name in ["intron", "exon"]:
+                            if name in nucleotide_sets[zero_pos]:
+                                nucleotide_sets[zero_pos].remove(name)
+                        nucleotide_sets[zero_pos].add(feature_name)
+                        feature_names.add(feature_name)
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
 

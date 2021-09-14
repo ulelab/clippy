@@ -16,7 +16,7 @@ def test_alt_features_full_run(rootdir, monkeypatch, tmp_path):
             "-g",
             os.path.join(rootdir, "tests", "data", "genome.fa.fai"),
             "-t",
-            str(os.cpu_count()),
+            str(1),
             "--alt_features",
             "scaRNA-gene_type-scaRNA,scaRNA-gene_name-SCARNA[0-9]+",
         ],
