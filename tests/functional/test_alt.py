@@ -13,6 +13,8 @@ def test_alt_features_full_run(rootdir, monkeypatch, tmp_path):
             os.path.join(rootdir, "tests", "data", "annot.gff"),
             "-o",
             os.path.join(tmp_path, "clippy"),
+            "-g",
+            os.path.join(rootdir, "tests", "data", "genome.fa.fai"),
             "-t",
             str(os.cpu_count()),
             "--alt_features",

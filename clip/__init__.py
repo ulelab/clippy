@@ -4,6 +4,7 @@ import scipy.signal as sig
 from scipy.ndimage.filters import uniform_filter1d
 from scipy import stats
 import pybedtools
+import pybedtools.featurefuncs
 import pandas as pd
 import matplotlib
 import tempfile
@@ -37,10 +38,11 @@ def main():
         alt_features,
         up_ext,
         down_ext,
+        genome_file,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
-        app = clip.interaction.DashApp(counts_bed, annot)
+        app = clip.interaction.DashApp(counts_bed, annot, genome_file)
         app.run()
     else:
         if my_gene is None:
@@ -59,6 +61,7 @@ def main():
                 alt_features,
                 up_ext,
                 down_ext,
+                genome_file,
             )
             outfile_name = outfile_name.replace(".bed", "_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
@@ -96,10 +99,6 @@ def main():
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
 
 
-def extend_gene_models(annotation, up_ext, down_ext):
-    annotation
-
-
 def parse_arguments(input_arguments):
     parser = argparse.ArgumentParser(description="Call CLIP peaks.")
     optional = parser._action_groups.pop()
@@ -112,10 +111,20 @@ def parse_arguments(input_arguments):
         help="bed file containing crosslink counts at each position",
     )
     required.add_argument(
-        "-o", "--outputprefix", type=str, required=True, help="prefix for output files"
+        "-o", "--outputprefix", type=str, required=True, help="prefix for output files",
     )
     required.add_argument(
-        "-a", "--annot", type=str, required=True, help="gtf annotation file"
+        "-a", "--annot", type=str, required=True, help="gtf annotation file",
+    )
+    required.add_argument(
+        "-g",
+        "--genome_file",
+        type=str,
+        required=True,
+        help=(
+            "genome file containing chromosome lengths, used by BEDTools for "
+            "genomic operations"
+        ),
     )
     optional.add_argument(
         "-n",
@@ -174,7 +183,7 @@ def parse_arguments(input_arguments):
         help="min counts per broad peak [DEFAULT 5]",
     )
     optional.add_argument(
-        "-g",
+        "-m",
         "--mygene",
         type=str,
         nargs="?",
@@ -255,15 +264,27 @@ def parse_arguments(input_arguments):
         args.alt_features,
         args.upstream_extension,
         args.downstream_extension,
+        args.genome_file,
     )
 
 
 def single_gene_get_peaks(
-    test, N, X, rel_height, min_gene_count, min_peak_count, annot_exon, alt_features,
+    test,
+    N,
+    X,
+    rel_height,
+    min_gene_count,
+    min_peak_count,
+    annot_exon,
+    alt_features,
+    gene_flank_annot,
 ):
     # Get the peaks for one gene
     # Now need to get an array of values
     chrom, xlink_start, xlink_end, score, strand, start, stop, gene_name = test.iloc[0]
+    # The gene flanks (if set) will be passed in, which we need to incorporate
+    start = min(gene_flank_annot.start)
+    stop = max(gene_flank_annot.end)
     # BEDTools recognises GTF files for the intersection, but we have to take 1 away here
     start = int(start - 1)
     stop = int(stop)
@@ -498,19 +519,16 @@ def get_exon_annot(gene_name, annot_exons):
     return None
 
 
-def get_overlapping_feature_bed(input_annot_bed, input_annot):
+def get_overlapping_feature_bed(input_annot_bed, genome_file):
     # Find regions of the genome which are overlapped by multiple features on
     # the same strand and remove those crosslinks.
-    tmp_genome_file = tempfile.NamedTemporaryFile(mode="wt", delete=False)
-    for x, y in input_annot.groupby("chrom", as_index=False):
-        tmp_genome_file.write("{}\t{}\n".format(x, max(y.end)))
-    tmp_genome_file.close()
     overlapping_feature_dfs = []
     for strand in ["+", "-"]:
         genomecov = input_annot_bed.genome_coverage(
-            bg=True, strand=strand, g=tmp_genome_file.name
-        ).to_dataframe()
-        if len(genomecov) > 0:
+            bg=True, strand=strand, g=genome_file
+        )
+        if genomecov.count() > 0:
+            genomecov = genomecov.to_dataframe()
             genomecov = genomecov[genomecov.name > 1].copy()
             genomecov["score"] = genomecov.name
             genomecov["strand"] = strand
@@ -520,9 +538,51 @@ def get_overlapping_feature_bed(input_annot_bed, input_annot):
     return pybedtools.BedTool.from_dataframe(pd.concat(overlapping_feature_dfs)).sort()
 
 
+def get_flanking_regions(annot_gene_bed, genome_filepath, up_ext, down_ext):
+    # Get bases either end of each gene
+    one_base_flanks = annot_gene_bed.flank(g=genome_filepath, l=1, r=1, s=True)
+    # Get the bases which don't overlap any other gene
+    non_overlapping_one_base_flanks = one_base_flanks.intersect(
+        annot_gene_bed, v=True, s=True
+    )
+    # Get the full length flanks
+    full_length_flanks = annot_gene_bed.flank(
+        g=genome_filepath, l=up_ext, r=down_ext, s=True
+    )
+    # Remove any parts of the full length flanks which overlap genes
+    split_flanks = full_length_flanks.subtract(annot_gene_bed, s=True)
+    # A function which takes a row of BEDTools intersect output (when run with
+    # the -wo flag) and returns the first entry (from file a) if the attribute
+    # fields match
+    def if_matching_return_a(interval):
+        if interval.fields[8] == interval.fields[17]:
+            return pybedtools.cbedtools.create_interval_from_list(interval.fields[:9])
+
+    #  Converts the gene field to flank, so that the resulting flanks can be
+    # identified
+    def convert_type_to_flank(interval):
+        assert interval.file_type == "gff"
+        new_fields = interval.fields[:]
+        new_fields[2] = "flank"
+        return pybedtools.cbedtools.create_interval_from_list(new_fields)
+
+    # Intersect the split flanks with the one base flanks which don't overlap
+    # genes and filter for matching attribute fields
+    valid_flanks = (
+        split_flanks.intersect(non_overlapping_one_base_flanks, wo=True, s=True)
+        .each(if_matching_return_a)
+        .each(convert_type_to_flank)
+        .saveas()
+    )
+    # Assertion that the one valid flank is returned for every non-overlapping
+    # one-base flank
+    assert len(non_overlapping_one_base_flanks) == len(valid_flanks)
+    return valid_flanks
+
+
 def getAllPeaks(
     counts_bed,
-    annot,
+    annot_filepath,
     N,
     X,
     rel_height,
@@ -535,12 +595,13 @@ def getAllPeaks(
     alt_features,
     up_ext,
     down_ext,
+    genome_file,
 ):
     if threads > 1:
         pool = Pool(threads)
     clip_bed = pybedtools.BedTool(counts_bed)
     annot = pd.read_table(
-        annot,
+        annot_filepath,
         header=None,
         names=[
             "chrom",
@@ -556,12 +617,6 @@ def getAllPeaks(
         comment="#",
     )
     annot_gene = annot[annot.feature_type == "gene"].copy(True)
-    # Extend the genes
-    annot_gene.loc[annot_gene.strand == "+", "start"] -= max(N, up_ext)
-    annot_gene.loc[annot_gene.strand == "+", "end"] += max(N, down_ext)
-    annot_gene.loc[annot_gene.strand == "-", "start"] -= max(N, down_ext)
-    annot_gene.loc[annot_gene.strand == "-", "end"] += max(N, up_ext)
-    annot_gene.loc[annot_gene.start < 1, "start"] = 1
 
     # Set up exon information
     annot_exons = None
@@ -579,10 +634,14 @@ def getAllPeaks(
 
     annot_bed = pybedtools.BedTool.from_dataframe(annot_gene).sort()
 
-    overlapping_features = get_overlapping_feature_bed(annot_bed, annot_gene)
+    flank_bed = get_flanking_regions(
+        annot_bed, genome_file, max(N, up_ext), max(N, down_ext)
+    )
+
+    annot_bed_with_flanks = annot_bed.cat(flank_bed, postmerge=False).sort()
 
     # Split crosslinks based on overlap with features
-    goverlaps = clip_bed.intersect(annot_bed, s=True, wo=True).to_dataframe(
+    goverlaps = clip_bed.intersect(annot_bed_with_flanks, s=True, wo=True).to_dataframe(
         names=[
             "chrom",
             "start",
@@ -617,6 +676,13 @@ def getAllPeaks(
         inplace=True,
     )
 
+    gene_flank_dict = {
+        x: y
+        for x, y in annot_bed_with_flanks.to_dataframe().groupby(
+            "attributes", as_index=False
+        )
+    }
+
     if threads > 1:
         arguments_list = [
             (
@@ -628,6 +694,7 @@ def getAllPeaks(
                 min_peak_count,
                 get_exon_annot(x, annot_exons),
                 annot_alt_features,
+                gene_flank_dict[x],
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
         ]
@@ -644,6 +711,7 @@ def getAllPeaks(
                 min_peak_count,
                 get_exon_annot(x, annot_exons),
                 annot_alt_features,
+                gene_flank_dict[x],
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
         ]
@@ -667,6 +735,9 @@ def getAllPeaks(
     all_peaks.to_csv(outfile_name, sep="\t", header=False, index=False)
     broad_peaks = pd.DataFrame(np.concatenate(broad_peaks))
 
+    overlapping_features = get_overlapping_feature_bed(
+        annot_bed_with_flanks, genome_file
+    )
     filtered_broad_peaks = None
     if overlapping_features is None:
         filtered_broad_peaks = pybedtools.BedTool.from_dataframe(broad_peaks)

@@ -10,7 +10,9 @@ def test_no_argument():
 
 
 def test_minimal_argument():
-    args = clip.parse_arguments(["-i", "test.bed", "-a", "test.gtf", "-o", "test"])
+    args = clip.parse_arguments(
+        ["-i", "test.bed", "-a", "test.gtf", "-o", "test", "-g", "genome.fa.fai",]
+    )
     assert isinstance(args, tuple)
     assert args == (
         "test.bed",
@@ -29,6 +31,7 @@ def test_minimal_argument():
         None,
         0,
         0,
+        "genome.fa.fai",
     )
 
 
@@ -46,6 +49,8 @@ def test_optional_argument():
             "-t",
             "5",
             "-int",
+            "-g",
+            "genome.fa.fai",
         ]
     )
     assert isinstance(args, tuple)
@@ -66,4 +71,5 @@ def test_optional_argument():
         None,
         0,
         0,
+        "genome.fa.fai",
     )
