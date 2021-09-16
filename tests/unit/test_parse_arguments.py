@@ -52,7 +52,7 @@ def test_optional_argument():
             "-int",
             "-g",
             "genome.fa.fai",
-            "-intra",
+            "-inter",
             "10",
         ]
     )

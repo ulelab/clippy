@@ -39,7 +39,7 @@ def main():
         up_ext,
         down_ext,
         genome_file,
-        intragenic_peak_threshold,
+        intergenic_peak_threshold,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
@@ -63,7 +63,7 @@ def main():
                 up_ext,
                 down_ext,
                 genome_file,
-                intragenic_peak_threshold,
+                intergenic_peak_threshold,
             )
             outfile_name = outfile_name.replace(".bed", "_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
@@ -224,18 +224,19 @@ def parse_arguments(input_arguments):
         help="Turn off individual exon and intron thresholds",
     )
     optional.add_argument(
-        "-intra",
-        "--intragenic_peak_threshold",
+        "-inter",
+        "--intergenic_peak_threshold",
         type=int,
         default=0,
         nargs="?",
         help=(
-            "Intragenic peaks are called by first creating intragenic regions "
+            "Intergenic peaks are called by first creating intergenic regions "
             "and calling peaks on the regions as though they were genes. "
-            "The regions are made by expanding intragenic crosslinks and "
+            "The regions are made by expanding intergenic crosslinks and "
             "merging the result. This parameter is the threshold number of "
-            "crosslinks required to include a region. If set to zero, no "
-            "intergenic peaks will be called [DEFAULT 0]"
+            "crosslinks required to include a region. If set to zero (default), "
+            "no intergenic peaks will be called. When using this mode, the "
+            "intergenic regions used will be output as a GTF file. [DEFAULT 0]"
         ),
     )
     optional.add_argument(
@@ -282,7 +283,7 @@ def parse_arguments(input_arguments):
         args.upstream_extension,
         args.downstream_extension,
         args.genome_file,
-        args.intragenic_peak_threshold,
+        args.intergenic_peak_threshold,
     )
 
 
@@ -619,7 +620,7 @@ def getAllPeaks(
     up_ext,
     down_ext,
     genome_file,
-    intragenic_peak_threshold,
+    intergenic_peak_threshold,
 ):
     if threads > 1:
         pool = Pool(threads)
@@ -664,8 +665,8 @@ def getAllPeaks(
 
     annot_bed_with_flanks = annot_bed.cat(flank_bed, postmerge=False).sort()
 
-    # if intragenic_peak_threshold==0 then no intergenic peaks will be called
-    if intragenic_peak_threshold > 0:
+    # if intergenic_peak_threshold==0 then no intergenic peaks will be called
+    if intergenic_peak_threshold > 0:
         def add_intergenic_gff_attribute_field(interval):
             new_fields = interval.fields[:]
             new_fields[2] = "intergenic_region"
@@ -681,7 +682,7 @@ def getAllPeaks(
 
         # Get the xlinks which don't overlap genes or flanks, expand them,
         # subtract the genes and flanks (in case you expanded into them)
-        # merge the result, filter for regions with enough crosslinks, and 
+        # merge the result, filter for regions with enough crosslinks, and
         # convert to gff
         intergenic_regions = (
             clip_bed.intersect(annot_bed_with_flanks, s=True, v=True)
@@ -689,7 +690,7 @@ def getAllPeaks(
             .subtract(annot_bed_with_flanks, s=True)
             .sort()
             .merge(s=True, c=[5, 6], o=["sum", "distinct"])
-            .filter(lambda row: int(row.score) >= intragenic_peak_threshold)
+            .filter(lambda row: int(row.score) >= intergenic_peak_threshold)
             .each(pybedtools.featurefuncs.bed2gff)
             .each(add_intergenic_gff_attribute_field)
             .saveas(outfile_name.replace(".bed", "_intergenic_regions.gtf"))
