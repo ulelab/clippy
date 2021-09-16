@@ -32,6 +32,7 @@ def test_minimal_argument():
         0,
         0,
         "genome.fa.fai",
+        0,
     )
 
 
@@ -51,6 +52,8 @@ def test_optional_argument():
             "-int",
             "-g",
             "genome.fa.fai",
+            "-intra",
+            "10",
         ]
     )
     assert isinstance(args, tuple)
@@ -72,4 +75,5 @@ def test_optional_argument():
         0,
         0,
         "genome.fa.fai",
+        10,
     )
