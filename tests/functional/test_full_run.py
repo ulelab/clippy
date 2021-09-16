@@ -161,7 +161,7 @@ def test_full_run_intergenic(rootdir, monkeypatch, tmp_path):
             "-t",
             str(os.cpu_count()),
             "-inter",
-            "50"
+            "50",
         ],
     )
     clip.main()
@@ -171,4 +171,3 @@ def test_full_run_intergenic(rootdir, monkeypatch, tmp_path):
             os.path.join(rootdir, "tests", "data", "output", file_name)
         ).readlines()
         assert test_lines == ref_lines
-

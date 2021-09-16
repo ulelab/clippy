@@ -667,16 +667,12 @@ def getAllPeaks(
 
     # if intergenic_peak_threshold==0 then no intergenic peaks will be called
     if intergenic_peak_threshold > 0:
+
         def add_intergenic_gff_attribute_field(interval):
             new_fields = interval.fields[:]
             new_fields[2] = "intergenic_region"
-            new_fields[8] = (
-                "name=\"intergenic_region_{}_{}_{}_{}\";".format(
-                    new_fields[0],
-                    new_fields[3],
-                    new_fields[4],
-                    new_fields[6],
-                )
+            new_fields[8] = 'name="intergenic_region_{}_{}_{}_{}";'.format(
+                new_fields[0], new_fields[3], new_fields[4], new_fields[6],
             )
             return pybedtools.cbedtools.create_interval_from_list(new_fields)
 
@@ -695,11 +691,9 @@ def getAllPeaks(
             .each(add_intergenic_gff_attribute_field)
             .saveas(outfile_name.replace(".bed", "_intergenic_regions.gtf"))
         )
-        annot_bed_with_flanks = (
-            annot_bed_with_flanks
-                .cat(intergenic_regions, postmerge=False)
-                .sort()
-        )
+        annot_bed_with_flanks = annot_bed_with_flanks.cat(
+            intergenic_regions, postmerge=False
+        ).sort()
 
     # Split crosslinks based on overlap with features
     goverlaps = clip_bed.intersect(annot_bed_with_flanks, s=True, wo=True).to_dataframe(
