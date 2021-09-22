@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib
 import tempfile
 
-matplotlib.use("TkAgg")
+# matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import argparse
 import sys
@@ -531,17 +531,13 @@ def return_alt_features(alt_feature_str, annot_gene):
     return annot_alt_features
 
 
-def get_exon_annot(gene_name, annot_exons):
-    if isinstance(annot_exons, pd.DataFrame):
-        attr_dict = get_gtf_attr_dict(gene_name)
+def get_exon_annot(gene_attrs, annot_exons):
+    if isinstance(annot_exons, dict):
+        attr_dict = get_gtf_attr_dict(gene_attrs)
         if "gene_id" in attr_dict:
-            return_table = annot_exons[
-                annot_exons.gene_id == attr_dict["gene_id"]
-            ].copy()
-            return_table.drop("gene_id", axis=1, inplace=True)
-            return return_table
+            if attr_dict["gene_id"] in annot_exons:
+                return annot_exons[attr_dict["gene_id"]]
     return None
-
 
 def get_overlapping_feature_bed(input_annot_bed, genome_file):
     # Find regions of the genome which are overlapped by multiple features on
@@ -651,6 +647,10 @@ def getAllPeaks(
             get_gtf_attr_dict(attr_str)["gene_id"]
             for attr_str in annot_exons["attributes"]
         ]
+        annot_exons = {
+            x: y for x, y in annot_exons.groupby("gene_id", as_index=False)
+        }
+
 
     #  Setup alt_features
     annot_alt_features = None

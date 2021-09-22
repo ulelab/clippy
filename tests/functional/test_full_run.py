@@ -85,6 +85,9 @@ def test_single_gene_get_peaks_profiling(rootdir):
         clip.get_gtf_attr_dict(attr_str)["gene_id"]
         for attr_str in annot_exons["attributes"]
     ]
+    annot_exons = {
+        x: y for x, y in annot_exons.groupby("gene_id", as_index=False)
+    }
     ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
     goverlaps = (
         xlinks.intersect(ang, s=True, wo=True)
