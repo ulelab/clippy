@@ -789,7 +789,6 @@ def getAllPeaks(
     all_peaks = pd.DataFrame(np.concatenate(all_peaks))
     all_peaks.to_csv(outfile_name, sep="\t", header=False, index=False)
     broad_peaks = pd.DataFrame(np.concatenate(broad_peaks))
-
     overlapping_features = get_overlapping_feature_bed(
         annot_bed_with_flanks, genome_file
     )
@@ -803,7 +802,6 @@ def getAllPeaks(
 
     all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks).sort()
     all_peaks_bed.saveas(outfile_name)
-
     print("Finished, written single nt peaks file.")
     return (all_peaks_bed, filtered_broad_peaks)
 
@@ -811,18 +809,21 @@ def getAllPeaks(
 def getBroadPeaks(
     crosslinks, broad_peaks, min_peak_count, outfile_name
 ):  # crosslinks and peaks are both bedtools
-    # First, merge all broadpeaks
-    final_peaks = broad_peaks.sort().merge(
-        s=True, c=[5, 6], o=["distinct"] * 2
-    )  # Then, intersect with the crosslinks,
-    # merge back down (to sum up the crosslink counts), and filter
-    final_peaks = (
-        final_peaks.intersect(crosslinks, s=True, wo=True)
-        .merge(s=True, c=[11, 6], o=["sum", "distinct"])
-        .filter(lambda x: float(x.score) >= min_peak_count)
-    )
-    final_peaks.saveas(outfile_name)
-    print("Finished, written broad peaks file.")
+    if broad_peaks.count() == 0:
+        print("No broad peaks found.")
+    else:
+        # First, merge all broadpeaks
+        final_peaks = broad_peaks.sort().merge(
+            s=True, c=[5, 6], o=["distinct"] * 2
+        )  # Then, intersect with the crosslinks,
+        # merge back down (to sum up the crosslink counts), and filter
+        final_peaks = (
+            final_peaks.intersect(crosslinks, s=True, wo=True)
+            .merge(s=True, c=[11, 6], o=["sum", "distinct"])
+            .filter(lambda x: float(x.score) >= min_peak_count)
+        )
+        final_peaks.saveas(outfile_name)
+        print("Finished, written broad peaks file.")
 
 
 def getSingleGenePeaks(

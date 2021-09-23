@@ -928,9 +928,14 @@ class DashApp:
                 filtered_broad_peaks = (
                     pybedtools.BedTool.from_dataframe(pd.DataFrame(broad_peaks))
                     .intersect(overlapping_features, v=True, s=True)
-                    .to_dataframe()
-                    .to_numpy()
                 )
+                if filtered_broad_peaks.count() == 0:
+                    filtered_broad_peaks = []
+                else:
+                    filtered_broad_peaks = (
+                        filtered_broad_peaks.to_dataframe()
+                        .to_numpy()
+                    )
 
             # add broad peaks as boxes
             fig.add_trace(
