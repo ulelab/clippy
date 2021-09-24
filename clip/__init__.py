@@ -317,61 +317,65 @@ def single_gene_get_peaks(
     if sum(scores) < min_gene_count:
         return (None, None, None, None, None, None)
 
-    feature_names = set(["intron", "exon"])
+    feature_names = ["intron", "exon"]
+    if alt_features:
+        feature_names += list(alt_features.keys())
 
-    nucleotide_sets = [set(["intron"]) for i in range(stop - start)]
+    # a row for each feature
+    feature_mask = np.full((len(feature_names), stop-start), False)
+    # make intron the default
+    feature_mask[0] = True
 
     if isinstance(annot_exon, pd.DataFrame):
         for index, row in annot_exon.iterrows():
-            for pos in range(row["start"] - 1, row["end"]):
-                zero_pos = pos - start
-                if "intron" in nucleotide_sets[zero_pos]:
-                    nucleotide_sets[zero_pos].remove("intron")
-                nucleotide_sets[zero_pos].add("exon")
+            # set intron to false
+            feature_mask[0, (row["start"]-1-start):(row["end"]-start)] = False
+            # set exon to true
+            feature_mask[1, (row["start"]-1-start):(row["end"]-start)] = True
 
-    if alt_features:
-        for feature_name, alt_features_annot in alt_features.items():
-            if len(alt_features_annot) > 0:
-                threshold_overrides = (
-                    pybedtools.BedTool.from_dataframe(alt_features_annot)
-                    .intersect(
-                        pybedtools.BedTool(
-                            "\t".join(
-                                [chrom, str(start), str(stop), "gene", ".", strand]
-                            ),
-                            from_string=True,
+    # skip introns and exons
+    for feature_idx, feature_name in list(enumerate(feature_names))[2:]:
+        alt_features_annot = alt_features[feature_name]
+        if len(alt_features_annot) > 0:
+            threshold_overrides = (
+                pybedtools.BedTool.from_dataframe(alt_features_annot)
+                .intersect(
+                    pybedtools.BedTool(
+                        "\t".join(
+                            [chrom, str(start), str(stop), "gene", ".", strand]
                         ),
-                        s=True,
-                    )
-                    .to_dataframe()
+                        from_string=True,
+                    ),
+                    s=True,
                 )
-                for index, row in threshold_overrides.iterrows():
-                    for pos in range(row["start"] - 1, row["end"]):
-                        zero_pos = pos - start
-                        for name in ["intron", "exon"]:
-                            if name in nucleotide_sets[zero_pos]:
-                                nucleotide_sets[zero_pos].remove(name)
-                        nucleotide_sets[zero_pos].add(feature_name)
-                        feature_names.add(feature_name)
+                .to_dataframe()
+            )
+            for index, row in threshold_overrides.iterrows():
+                # set introns and exons to false
+                feature_mask[
+                    0:2,
+                    (row["start"]-1-start):(row["end"]-start)
+                ] = False
+                # set feature to true
+                feature_mask[
+                    feature_idx,
+                    (row["start"]-1-start):(row["end"]-start)
+                ] = True
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
 
+    mean_dict = {}
+    std_dict = {}
     values_dict = {}
-    for feature_name in feature_names:
-        feature_values = roll_mean_smoothed_scores[
-            [feature_name in i for i in nucleotide_sets]
-        ]
+    for feature_idx, feature_name in enumerate(feature_names):
+        feature_values = roll_mean_smoothed_scores[feature_mask[feature_idx]]
         # Removes zeros from the vectors, but not sure if this is a good idea
         # Especially for calculating standard deviation
         # feature_values = feature_values[np.logical_not(feature_values == 0.0)]
         values_dict[feature_name] = feature_values
-
-    mean_dict = {}
-    std_dict = {}
-    for feature_name in feature_names:
-        if len(values_dict[feature_name]) > 0:
-            mean_dict[feature_name] = np.mean(values_dict[feature_name])
-            std_dict[feature_name] = np.std(values_dict[feature_name])
+        if len(feature_values) > 0:
+            mean_dict[feature_name] = np.mean(feature_values)
+            std_dict[feature_name] = np.std(feature_values)
         else:
             mean_dict[feature_name] = 0.0
             std_dict[feature_name] = 0.0
@@ -386,16 +390,21 @@ def single_gene_get_peaks(
             np.concatenate((values_dict["intron"], values_dict["exon"]))
         )
 
-    heights = np.array(
-        [max([mean_dict[feature] for feature in pos]) for pos in nucleotide_sets]
+    heights = np.amax(
+        (
+            feature_mask.transpose() *
+            [mean_dict[feature_name] for feature_name in feature_names]
+        ),
+        1
     )
 
-    prominences = (
-        np.array(
-            [max([std_dict[feature] for feature in pos]) for pos in nucleotide_sets]
-        )
-        * X
-    )
+    prominences = np.amax(
+        (
+            feature_mask.transpose() *
+            [std_dict[feature_name] for feature_name in feature_names]
+        ),
+        1
+    ) * X
 
     peaks = sig.find_peaks(
         roll_mean_smoothed_scores,
