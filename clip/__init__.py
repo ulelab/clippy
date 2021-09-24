@@ -307,14 +307,10 @@ def single_gene_get_peaks(
     # BEDTools recognises GTF files for the intersection, but we have to take 1 away here
     start = int(start - 1)
     stop = int(stop)
-    xlink_coverage = {pos: 0 for pos in range(start, stop)}
-    start_list = list(test.start)
-    score_list = list(test.score)
-    for idx in range(len(start_list)):
-        xlink_coverage[start_list[idx]] += score_list[idx]
-    scores = np.array(list(xlink_coverage.values()))
+    scores = np.zeros(stop - start)
+    scores[test.start-start] = test.score
 
-    if sum(scores) < min_gene_count:
+    if np.sum(scores) < min_gene_count:
         return (None, None, None, None, None, None)
 
     feature_names = ["intron", "exon"]
@@ -327,11 +323,11 @@ def single_gene_get_peaks(
     feature_mask[0] = True
 
     if isinstance(annot_exon, pd.DataFrame):
-        for index, row in annot_exon.iterrows():
+        for row in annot_exon.to_numpy():
             # set intron to false
-            feature_mask[0, (row["start"]-1-start):(row["end"]-start)] = False
+            feature_mask[0, (row[3]-1-start):(row[4]-start)] = False
             # set exon to true
-            feature_mask[1, (row["start"]-1-start):(row["end"]-start)] = True
+            feature_mask[1, (row[3]-1-start):(row[4]-start)] = True
 
     # skip introns and exons
     for feature_idx, feature_name in list(enumerate(feature_names))[2:]:
@@ -350,16 +346,16 @@ def single_gene_get_peaks(
                 )
                 .to_dataframe()
             )
-            for index, row in threshold_overrides.iterrows():
+            for row in threshold_overrides.to_numpy():
                 # set introns and exons to false
                 feature_mask[
                     0:2,
-                    (row["start"]-1-start):(row["end"]-start)
+                    (row[3]-1-start):(row[4]-start)
                 ] = False
                 # set feature to true
                 feature_mask[
                     feature_idx,
-                    (row["start"]-1-start):(row["end"]-start)
+                    (row[3]-1-start):(row[4]-start)
                 ] = True
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)

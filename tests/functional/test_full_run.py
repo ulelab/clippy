@@ -175,6 +175,33 @@ def test_getAllPeaks_yeast(rootdir, tmp_path):
     pr.dump_stats(os.path.join(rootdir, "prof", "getAllPeaks.out"))
 
 
+def test_getAllPeaks_rbfox(rootdir, tmp_path):
+    pr = cProfile.Profile()
+    pr.enable()
+    clip.getAllPeaks(
+        pybedtools.BedTool(
+            os.path.join(rootdir, "tests", "data", "rbfox", "HepG2_RBFOX2.xl.bed.gz")
+        ),
+        os.path.join(rootdir, "tests", "data", "rbfox", "gencode.v35.annotation.gtf.gz"),
+        50,
+        1.0,
+        0.8,
+        5,
+        5,
+        1,
+        1,
+        os.path.join(tmp_path, "clippy_getAllPeaks_rbfox_profile.bed"),
+        False,
+        None,
+        0,
+        0,
+        os.path.join(rootdir, "tests", "data", "human_genome.fa.fai"),
+        0,
+    )
+    pr.disable()
+    pr.dump_stats(os.path.join(rootdir, "prof", "getAllPeaks_rbfox.out"))
+
+
 def test_full_run_intergenic(rootdir, monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sys.argv",
