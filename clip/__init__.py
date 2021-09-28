@@ -308,7 +308,7 @@ def single_gene_get_peaks(
     start = int(start - 1)
     stop = int(stop)
     scores = np.zeros(stop - start)
-    scores[test.start-start] = test.score
+    scores[test.start - start] = test.score
 
     if np.sum(scores) < min_gene_count:
         return (None, None, None, None, None, None)
@@ -318,16 +318,16 @@ def single_gene_get_peaks(
         feature_names += list(alt_features.keys())
 
     # a row for each feature
-    feature_mask = np.full((len(feature_names), stop-start), False)
+    feature_mask = np.full((len(feature_names), stop - start), False)
     # make intron the default
     feature_mask[0] = True
 
     if isinstance(annot_exon, pd.DataFrame):
         for row in annot_exon.to_numpy():
             # set intron to false
-            feature_mask[0, (row[3]-1-start):(row[4]-start)] = False
+            feature_mask[0, (row[3] - 1 - start) : (row[4] - start)] = False
             # set exon to true
-            feature_mask[1, (row[3]-1-start):(row[4]-start)] = True
+            feature_mask[1, (row[3] - 1 - start) : (row[4] - start)] = True
 
     # skip introns and exons
     for feature_idx, feature_name in list(enumerate(feature_names))[2:]:
@@ -337,9 +337,7 @@ def single_gene_get_peaks(
                 pybedtools.BedTool.from_dataframe(alt_features_annot)
                 .intersect(
                     pybedtools.BedTool(
-                        "\t".join(
-                            [chrom, str(start), str(stop), "gene", ".", strand]
-                        ),
+                        "\t".join([chrom, str(start), str(stop), "gene", ".", strand]),
                         from_string=True,
                     ),
                     s=True,
@@ -348,14 +346,10 @@ def single_gene_get_peaks(
             )
             for row in threshold_overrides.to_numpy():
                 # set introns and exons to false
-                feature_mask[
-                    0:2,
-                    (row[3]-1-start):(row[4]-start)
-                ] = False
+                feature_mask[0:2, (row[3] - 1 - start) : (row[4] - start)] = False
                 # set feature to true
                 feature_mask[
-                    feature_idx,
-                    (row[3]-1-start):(row[4]-start)
+                    feature_idx, (row[3] - 1 - start) : (row[4] - start)
                 ] = True
 
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
@@ -388,19 +382,22 @@ def single_gene_get_peaks(
 
     heights = np.amax(
         (
-            feature_mask.transpose() *
-            [mean_dict[feature_name] for feature_name in feature_names]
+            feature_mask.transpose()
+            * [mean_dict[feature_name] for feature_name in feature_names]
         ),
-        1
+        1,
     )
 
-    prominences = np.amax(
-        (
-            feature_mask.transpose() *
-            [std_dict[feature_name] for feature_name in feature_names]
-        ),
-        1
-    ) * X
+    prominences = (
+        np.amax(
+            (
+                feature_mask.transpose()
+                * [std_dict[feature_name] for feature_name in feature_names]
+            ),
+            1,
+        )
+        * X
+    )
 
     peaks = sig.find_peaks(
         roll_mean_smoothed_scores,
@@ -544,6 +541,7 @@ def get_exon_annot(gene_attrs, annot_exons):
                 return annot_exons[attr_dict["gene_id"]]
     return None
 
+
 def get_overlapping_feature_bed(input_annot_bed, genome_file):
     # Find regions of the genome which are overlapped by multiple features on
     # the same strand and remove those crosslinks.
@@ -652,10 +650,7 @@ def getAllPeaks(
             get_gtf_attr_dict(attr_str)["gene_id"]
             for attr_str in annot_exons["attributes"]
         ]
-        annot_exons = {
-            x: y for x, y in annot_exons.groupby("gene_id", as_index=False)
-        }
-
+        annot_exons = {x: y for x, y in annot_exons.groupby("gene_id", as_index=False)}
 
     #  Setup alt_features
     annot_alt_features = None

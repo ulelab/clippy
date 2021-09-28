@@ -63,4 +63,3 @@ def test_no_alt_features_cep295(rootdir, monkeypatch, tmp_path):
             os.path.join(rootdir, "tests", "data", "output", file_name)
         ).readlines()
         assert test_lines == ref_lines
-

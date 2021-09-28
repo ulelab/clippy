@@ -85,9 +85,7 @@ def test_single_gene_get_peaks_profiling(rootdir):
         clip.get_gtf_attr_dict(attr_str)["gene_id"]
         for attr_str in annot_exons["attributes"]
     ]
-    annot_exons = {
-        x: y for x, y in annot_exons.groupby("gene_id", as_index=False)
-    }
+    annot_exons = {x: y for x, y in annot_exons.groupby("gene_id", as_index=False)}
     ang = pybedtools.BedTool.from_dataframe(annot_gene).sort()
     goverlaps = (
         xlinks.intersect(ang, s=True, wo=True)
@@ -182,7 +180,9 @@ def test_getAllPeaks_rbfox(rootdir, tmp_path):
         pybedtools.BedTool(
             os.path.join(rootdir, "tests", "data", "rbfox", "HepG2_RBFOX2.xl.bed.gz")
         ),
-        os.path.join(rootdir, "tests", "data", "rbfox", "gencode.v35.annotation.gtf.gz"),
+        os.path.join(
+            rootdir, "tests", "data", "rbfox", "gencode.v35.annotation.gtf.gz"
+        ),
         50,
         1.0,
         0.8,
