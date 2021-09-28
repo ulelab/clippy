@@ -39,6 +39,7 @@ def main():
         up_ext,
         down_ext,
         genome_file,
+        intergenic_peak_threshold,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
@@ -62,6 +63,7 @@ def main():
                 up_ext,
                 down_ext,
                 genome_file,
+                intergenic_peak_threshold,
             )
             outfile_name = outfile_name.replace(".bed", "_broadPeaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
@@ -222,6 +224,22 @@ def parse_arguments(input_arguments):
         help="Turn off individual exon and intron thresholds",
     )
     optional.add_argument(
+        "-inter",
+        "--intergenic_peak_threshold",
+        type=int,
+        default=0,
+        nargs="?",
+        help=(
+            "Intergenic peaks are called by first creating intergenic regions "
+            "and calling peaks on the regions as though they were genes. "
+            "The regions are made by expanding intergenic crosslinks and "
+            "merging the result. This parameter is the threshold number of "
+            "crosslinks required to include a region. If set to zero (default), "
+            "no intergenic peaks will be called. When using this mode, the "
+            "intergenic regions used will be output as a GTF file. [DEFAULT 0]"
+        ),
+    )
+    optional.add_argument(
         "-alt",
         "--alt_features",
         type=str,
@@ -265,6 +283,7 @@ def parse_arguments(input_arguments):
         args.upstream_extension,
         args.downstream_extension,
         args.genome_file,
+        args.intergenic_peak_threshold,
     )
 
 
@@ -317,7 +336,9 @@ def single_gene_get_peaks(
                     pybedtools.BedTool.from_dataframe(alt_features_annot)
                     .intersect(
                         pybedtools.BedTool(
-                            "\t".join([chrom, str(start), str(stop), "gene", ".", strand]),
+                            "\t".join(
+                                [chrom, str(start), str(stop), "gene", ".", strand]
+                            ),
                             from_string=True,
                         ),
                         s=True,
@@ -512,11 +533,13 @@ def return_alt_features(alt_feature_str, annot_gene):
 
 def get_exon_annot(gene_name, annot_exons):
     if isinstance(annot_exons, pd.DataFrame):
-        return_table = annot_exons[
-            annot_exons.gene_id == get_gtf_attr_dict(gene_name)["gene_id"]
-        ].copy()
-        return_table.drop("gene_id", axis=1, inplace=True)
-        return return_table
+        attr_dict = get_gtf_attr_dict(gene_name)
+        if "gene_id" in attr_dict:
+            return_table = annot_exons[
+                annot_exons.gene_id == attr_dict["gene_id"]
+            ].copy()
+            return_table.drop("gene_id", axis=1, inplace=True)
+            return return_table
     return None
 
 
@@ -597,6 +620,7 @@ def getAllPeaks(
     up_ext,
     down_ext,
     genome_file,
+    intergenic_peak_threshold,
 ):
     if threads > 1:
         pool = Pool(threads)
@@ -640,6 +664,36 @@ def getAllPeaks(
     )
 
     annot_bed_with_flanks = annot_bed.cat(flank_bed, postmerge=False).sort()
+
+    # if intergenic_peak_threshold==0 then no intergenic peaks will be called
+    if intergenic_peak_threshold > 0:
+
+        def add_intergenic_gff_attribute_field(interval):
+            new_fields = interval.fields[:]
+            new_fields[2] = "intergenic_region"
+            new_fields[8] = 'name="intergenic_region_{}_{}_{}_{}";'.format(
+                new_fields[0], new_fields[3], new_fields[4], new_fields[6],
+            )
+            return pybedtools.cbedtools.create_interval_from_list(new_fields)
+
+        # Get the xlinks which don't overlap genes or flanks, expand them,
+        # subtract the genes and flanks (in case you expanded into them)
+        # merge the result, filter for regions with enough crosslinks, and
+        # convert to gff
+        intergenic_regions = (
+            clip_bed.intersect(annot_bed_with_flanks, s=True, v=True)
+            .slop(g=genome_file, b=N)
+            .subtract(annot_bed_with_flanks, s=True)
+            .sort()
+            .merge(s=True, c=[5, 6], o=["sum", "distinct"])
+            .filter(lambda row: int(row.score) >= intergenic_peak_threshold)
+            .each(pybedtools.featurefuncs.bed2gff)
+            .each(add_intergenic_gff_attribute_field)
+            .saveas(outfile_name.replace(".bed", "_intergenic_regions.gtf"))
+        )
+        annot_bed_with_flanks = annot_bed_with_flanks.cat(
+            intergenic_regions, postmerge=False
+        ).sort()
 
     # Split crosslinks based on overlap with features
     goverlaps = clip_bed.intersect(annot_bed_with_flanks, s=True, wo=True).to_dataframe(
