@@ -110,7 +110,7 @@ In the image below, you can see the four positions the algorithm picks out in th
 If you plan to contribute to the Clippy code we have some helpful functions for development. To run the automated testing, use:
 
 ```
-pytest --cov=clip
+pytest --cov=clip -k "not profiling and not web"
 ```
 
 You might be interested in how long certain functions take to run. To run the profiling code:

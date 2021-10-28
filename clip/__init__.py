@@ -17,7 +17,14 @@ import clip.interaction
 from multiprocessing import Pool
 import re
 
-__version__ = "1.1.0"
+from clip.__about__ import (
+    __title__,
+    __summary__,
+    __url__,
+    __version__,
+    __author__,
+    __email__,
+)
 
 
 def main():
@@ -103,6 +110,9 @@ def main():
 
 def parse_arguments(input_arguments):
     parser = argparse.ArgumentParser(description="Call CLIP peaks.")
+    parser.add_argument(
+        "-v", "--version", action="version", version=__version__,
+    )
     optional = parser._action_groups.pop()
     required = parser.add_argument_group("required arguments")
     required.add_argument(
