@@ -142,7 +142,7 @@ def parse_arguments(input_arguments):
         "-n",
         "--windowsize",
         type=int,
-        default=50,
+        default=15,
         nargs="?",
         help="rolling mean window size [DEFAULT 50]",
     )

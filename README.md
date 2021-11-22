@@ -39,7 +39,7 @@ required arguments:
 optional arguments:
   -h, --help            show this help message and exit
   -n [WINDOWSIZE], --windowsize [WINDOWSIZE]
-                        rolling mean window size [DEFAULT 50]
+                        rolling mean window size [DEFAULT 15]
   -x [ADJUST], --adjust [ADJUST]
                         adjustment for prominence [DEFAULT 1]
   -hc [HEIGHT_CUTOFF], --height_cutoff [HEIGHT_CUTOFF]

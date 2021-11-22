@@ -8,7 +8,7 @@ def test_full_run_multi_thread(rootdir, monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sys.argv",
         [
-            "clip.py",
+            "clippy",
             "-i",
             os.path.join(rootdir, "tests", "data", "crosslinkcounts.bed"),
             "-a",
@@ -35,7 +35,7 @@ def test_full_run_single_thread(rootdir, monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sys.argv",
         [
-            "clip.py",
+            "clippy",
             "-i",
             os.path.join(rootdir, "tests", "data", "crosslinkcounts.bed"),
             "-a",
@@ -62,7 +62,7 @@ def test_full_run_intergenic(rootdir, monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sys.argv",
         [
-            "clip.py",
+            "clippy",
             "-i",
             os.path.join(rootdir, "tests", "data", "crosslinkcounts.bed"),
             "-a",

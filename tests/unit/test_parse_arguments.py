@@ -17,11 +17,11 @@ def test_minimal_argument():
     assert args == (
         "test.bed",
         "test.gtf",
-        50,
+        15,
         1,
         0.8,
         5,
-        "test_rollmean50_stdev1_minGeneCount5.bed",
+        "test_rollmean15_stdev1_minGeneCount5.bed",
         None,
         5,
         1,

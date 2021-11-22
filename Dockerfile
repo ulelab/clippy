@@ -15,6 +15,6 @@ RUN conda env create -f /clippy/environment.yml \
     && conda clean -a
 ENV PATH /opt/conda/envs/clippy/bin:$PATH
 
+# Install Clippy
 WORKDIR /clippy
-ENV PATH /clippy:$PATH
-RUN chmod +x clip.py
+RUN python -m pip install . -vv --ignore-installed --no-deps

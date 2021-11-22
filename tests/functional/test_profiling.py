@@ -73,7 +73,7 @@ def test_single_gene_get_peaks_profiling(rootdir):
     arguments_list = [
         (
             pd.DataFrame(y),
-            50,
+            15,
             1,
             0.8,
             5,
@@ -100,7 +100,7 @@ def test_getAllPeaks_yeast(rootdir, tmp_path):
             os.path.join(rootdir, "tests", "data", "crosslinkcounts.bed")
         ),
         os.path.join(rootdir, "tests", "data", "annot.gff"),
-        50,
+        15,
         1.0,
         0.8,
         5,
@@ -129,7 +129,7 @@ def test_getAllPeaks_rbfox(rootdir, tmp_path):
         os.path.join(
             rootdir, "tests", "data", "rbfox", "gencode.v35.annotation.gtf.gz"
         ),
-        50,
+        15,
         1.0,
         0.8,
         5,

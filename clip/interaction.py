@@ -202,7 +202,7 @@ class DashApp:
                                                             ]
                                                         ],
                                                         id="n-select",
-                                                        value=50,
+                                                        value=15,
                                                         multi=False,
                                                         optionHeight=20,
                                                     )
