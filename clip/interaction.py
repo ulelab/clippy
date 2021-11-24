@@ -56,6 +56,7 @@ class DashApp:
                 "frame",
                 "attributes",
             ],
+            comment="#",
         )
         # Import gene information
         print("Importing gene information...")
@@ -239,7 +240,7 @@ class DashApp:
                                                 },
                                             ),
                                             dash_html.Label(
-                                                "Relative height (broad peak threshold)"
+                                                "Relative height (peak threshold)"
                                             ),
                                             dash_html.Div(
                                                 [
@@ -285,7 +286,7 @@ class DashApp:
                                                 },
                                             ),
                                             dash_html.Label(
-                                                "Minimum counts per broad peak"
+                                                "Minimum counts per peak"
                                             ),
                                             dash_html.Div(
                                                 [
@@ -792,7 +793,7 @@ class DashApp:
                     ]
                 ).flatten(),
                 mode="lines",
-                name="Broad peak width",
+                name="Peak width",
                 line=dict(color="darkorange", width=1),
             ),
             row=1,
@@ -977,7 +978,7 @@ class DashApp:
             row=3,
             col=1,
             showticklabels=False,
-            title={"text": "Clippy broad peaks", "standoff": 0.05},
+            title={"text": "Clippy peaks", "standoff": 0.05},
         )
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=3, col=1)
         fig.update_layout(xaxis_showticklabels=True)
@@ -1035,7 +1036,7 @@ class DashApp:
                     marker_size=12,
                     marker_color="mediumvioletred",
                     marker_line={"width": 2, "color": "darkslateblue"},
-                    name="Narrow peaks",
+                    name="Peak summits",
                 ),
                 row=1,
                 col=1,
