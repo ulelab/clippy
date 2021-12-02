@@ -26,6 +26,12 @@ conda install python.app
 and replace `python clip.py` to `pythonw clip.py` in the run command.
 
 ### Usage
+
+Clippy is now available to install from Bioconda:
+```
+conda install -c bioconda clippy
+```
+
 ```
 user$ python clip.py -h
 usage: clip.py [-h] -i INPUTBED -o OUTPUTPREFIX -a ANNOT [-n [WINDOWSIZE]]
