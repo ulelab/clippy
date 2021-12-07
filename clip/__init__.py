@@ -72,7 +72,7 @@ def main():
                 genome_file,
                 intergenic_peak_threshold,
             )
-            outfile_name = outfile_name.replace(".bed", "_broadPeaks.bed")
+            outfile_name = outfile_name.replace(".bed", "_Peaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
         else:
             outfile_name = (
@@ -83,7 +83,7 @@ def main():
                 + str(X)
                 + "_minGeneCount"
                 + str(min_gene_count)
-                + ".bed"
+                + "_Summits.bed"
             )
             peaks, broad_peaks = getSingleGenePeaks(
                 counts_bed,
@@ -103,7 +103,7 @@ def main():
                 + str(X)
                 + "_minGeneCount"
                 + str(min_gene_count)
-                + "_broadPeaks.bed"
+                + "_Peaks.bed"
             )
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
 
@@ -272,7 +272,7 @@ def parse_arguments(input_arguments):
             str(args.adjust),
             "_minGeneCount",
             str(args.mingenecounts),
-            ".bed",
+            "_Summits.bed",
         ]
     )
     return (
@@ -812,7 +812,7 @@ def getAllPeaks(
 
     all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks).sort()
     all_peaks_bed.saveas(outfile_name)
-    print("Finished, written single nt peaks file.")
+    print("Finished, written summits file.")
     return (all_peaks_bed, filtered_broad_peaks)
 
 
@@ -820,7 +820,7 @@ def getBroadPeaks(
     crosslinks, broad_peaks, min_peak_count, outfile_name
 ):  # crosslinks and peaks are both bedtools
     if broad_peaks.count() == 0:
-        print("No broad peaks found.")
+        print("No peaks found.")
     else:
         # First, merge all broadpeaks
         final_peaks = broad_peaks.sort().merge(
@@ -833,7 +833,7 @@ def getBroadPeaks(
             .filter(lambda x: float(x.score) >= min_peak_count)
         )
         final_peaks.saveas(outfile_name)
-        print("Finished, written broad peaks file.")
+        print("Finished, written peaks file.")
 
 
 def getSingleGenePeaks(
@@ -927,7 +927,7 @@ def getSingleGenePeaks(
         + str(X)
         + "_minGeneCount"
         + str(min_gene_count)
-        + ".bed"
+        + "_Summits.bed"
     )
     pd.DataFrame(peaks).to_csv(outfile_name, sep="\t", header=False, index=False)
 
