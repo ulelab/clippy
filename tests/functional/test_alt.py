@@ -6,7 +6,7 @@ def test_alt_features_full_run(rootdir, monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sys.argv",
         [
-            "clippy",
+            "clip.py",
             "-i",
             os.path.join(rootdir, "tests", "data", "crosslinkcounts.bed"),
             "-a",
@@ -28,7 +28,7 @@ def test_no_alt_features_cep295(rootdir, monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sys.argv",
         [
-            "clippy",
+            "clip.py",
             "-i",
             os.path.join(rootdir, "tests", "data", "cep295.bed"),
             "-a",
@@ -43,7 +43,7 @@ def test_no_alt_features_cep295(rootdir, monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sys.argv",
         [
-            "clippy",
+            "clip.py",
             "-i",
             os.path.join(rootdir, "tests", "data", "cep295.bed"),
             "-a",
