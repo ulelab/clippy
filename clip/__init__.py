@@ -48,6 +48,7 @@ def main():
         genome_file,
         intergenic_peak_threshold,
     ) = parse_arguments(sys.argv[1:])
+    print('dev')
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
         app = clip.interaction.DashApp(counts_bed, annot, genome_file)
@@ -492,7 +493,8 @@ def calc_chunksize(n_workers, len_iterable, factor):
 
 
 def get_the_peaks_single_arg(input_tuple):
-    return single_gene_get_peaks(*input_tuple)
+    ret = single_gene_get_peaks(*input_tuple)
+    return ret[:2]
 
 
 def get_gtf_attr_dict(attr_str):
@@ -767,7 +769,7 @@ def getAllPeaks(
         output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
     else:
         output_list = [
-            single_gene_get_peaks(
+            get_the_peaks_single_arg((
                 pd.DataFrame(y),
                 N,
                 X,
@@ -777,21 +779,14 @@ def getAllPeaks(
                 get_exon_annot(x, annot_exons),
                 annot_alt_features,
                 gene_flank_dict[x],
-            )
+            ))
             for x, y in goverlaps.groupby("gene_name", as_index=False)
         ]
 
     all_peaks = []
     broad_peaks = []
     for output in output_list:
-        (
-            peaks_in_gene,
-            broad_peaks_in_gene,
-            rollingmean,
-            peak_details,
-            heights,
-            prominences,
-        ) = output
+        peaks_in_gene, broad_peaks_in_gene = output
         if isinstance(peaks_in_gene, np.ndarray):
             all_peaks.append(peaks_in_gene)
             broad_peaks.append(broad_peaks_in_gene)
