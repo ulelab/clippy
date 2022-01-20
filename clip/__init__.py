@@ -48,7 +48,6 @@ def main():
         genome_file,
         intergenic_peak_threshold,
     ) = parse_arguments(sys.argv[1:])
-    print('dev')
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
         app = clip.interaction.DashApp(counts_bed, annot, genome_file)
@@ -751,62 +750,72 @@ def getAllPeaks(
     }
 
     if threads > 1:
-        arguments_list = [
+        chunk_size = calc_chunksize(
+            threads, len(set(goverlaps.gene_name)), chunksize_factor
+        )
+        output_list = pool.imap(
+            get_the_peaks_single_arg,
             (
-                pd.DataFrame(y),
-                N,
-                X,
-                rel_height,
-                min_gene_count,
-                min_peak_count,
-                get_exon_annot(x, annot_exons),
-                annot_alt_features,
-                gene_flank_dict[x],
+                (
+                    pd.DataFrame(y),
+                    N,
+                    X,
+                    rel_height,
+                    min_gene_count,
+                    min_peak_count,
+                    get_exon_annot(x, annot_exons),
+                    annot_alt_features,
+                    gene_flank_dict[x],
+                )
+                for x, y in goverlaps.groupby("gene_name", as_index=False)
+            ),
+            chunk_size,
+        )
+    else:
+        output_list = (
+            get_the_peaks_single_arg(
+                (
+                    pd.DataFrame(y),
+                    N,
+                    X,
+                    rel_height,
+                    min_gene_count,
+                    min_peak_count,
+                    get_exon_annot(x, annot_exons),
+                    annot_alt_features,
+                    gene_flank_dict[x],
+                )
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
-        ]
-        chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
-        output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
-    else:
-        output_list = [
-            get_the_peaks_single_arg((
-                pd.DataFrame(y),
-                N,
-                X,
-                rel_height,
-                min_gene_count,
-                min_peak_count,
-                get_exon_annot(x, annot_exons),
-                annot_alt_features,
-                gene_flank_dict[x],
-            ))
-            for x, y in goverlaps.groupby("gene_name", as_index=False)
-        ]
+        )
 
-    all_peaks = []
-    broad_peaks = []
+    all_peaks_out_f = tempfile.NamedTemporaryFile("wt", delete=False)
+    broad_peaks_out_f = tempfile.NamedTemporaryFile("wt", delete=False)
     for output in output_list:
-        peaks_in_gene, broad_peaks_in_gene = output
-        if isinstance(peaks_in_gene, np.ndarray):
-            all_peaks.append(peaks_in_gene)
-            broad_peaks.append(broad_peaks_in_gene)
+        all_peaks, broad_peaks = output
+        if isinstance(all_peaks, np.ndarray):
+            for line in all_peaks:
+                all_peaks_out_f.write("\t".join(line) + "\n")
+            for line in broad_peaks:
+                broad_peaks_out_f.write("\t".join(line) + "\n")
+    all_peaks_out_f.close()
+    broad_peaks_out_f.close()
 
-    all_peaks = pd.DataFrame(np.concatenate(all_peaks))
-    all_peaks.to_csv(outfile_name, sep="\t", header=False, index=False)
-    broad_peaks = pd.DataFrame(np.concatenate(broad_peaks))
+    all_peaks_bed = pybedtools.BedTool(all_peaks_out_f.name).sort()
+    all_peaks_bed.saveas(outfile_name)
+
     overlapping_features = get_overlapping_feature_bed(
         annot_bed_with_flanks, genome_file
     )
+
     filtered_broad_peaks = None
     if overlapping_features is None:
-        filtered_broad_peaks = pybedtools.BedTool.from_dataframe(broad_peaks)
+        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name)
     else:
-        filtered_broad_peaks = pybedtools.BedTool.from_dataframe(broad_peaks).intersect(
+        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name).intersect(
             overlapping_features, v=True, s=True
         )
 
-    all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks).sort()
-    all_peaks_bed.saveas(outfile_name)
     print("Finished, written summits file.")
     return (all_peaks_bed, filtered_broad_peaks)
 
