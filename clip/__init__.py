@@ -707,39 +707,22 @@ def getAllPeaks(
         ).sort()
 
     # Split crosslinks based on overlap with features
-    goverlaps = clip_bed.intersect(annot_bed_with_flanks, s=True, wo=True).to_dataframe(
+    goverlaps_tmp = clip_bed.intersect(annot_bed_with_flanks, s=True, wo=True).saveas()
+
+    goverlaps = pd.read_csv(
+        goverlaps_tmp.fn,
+        sep="\t",
         names=[
             "chrom",
             "start",
             "end",
-            "name",
             "score",
             "strand",
-            "chrom2",
-            "source",
-            "feature",
             "gene_start",
             "gene_stop",
-            "nothing",
-            "strand2",
-            "nothing2",
-            "gene_name",
-            "interval",
-        ]
-    )
-    goverlaps.drop(
-        [
-            "name",
-            "chrom2",
-            "nothing",
-            "nothing2",
-            "interval",
-            "strand2",
-            "source",
-            "feature",
+            "gene_name"
         ],
-        axis=1,
-        inplace=True,
+        usecols=[0, 1, 2, 4, 5, 9, 10, 14]
     )
 
     gene_flank_dict = {
