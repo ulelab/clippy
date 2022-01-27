@@ -2,32 +2,17 @@
 A wrapper around scipy "[find_peaks](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.find_peaks.html)" function to enable peak calling of CLIP data.
 ![A dumb joke](smallerclippy.png)
 
-### Requirements
-This is a python 3 program requiring the following modules:
- - numpy
- - scipy
- - pybedtools
- - pandas
- - matplotlib
-
-It is important to use bedtools v2.26.0. Also note, running matplotlib on a cluster it is helpful to add `export QT_QPA_PLATFORM='offscreen'` to your bash profile to avoid display errors.
-
-If you use conda, we provide an environment.yaml:
- 
-```
-conda env create -f environment.yml
-conda activate clippy
-```
-
 ### Usage
 
 Clippy is now available to install from Bioconda:
 ```
-conda install -c bioconda clippy
+conda create --name clippy python=3.8
+conda install -c bioconda -c conda-forge clippy 
 ```
 
 ```
-usage: clip.py [-h] [-v] -i INPUTBED -o OUTPUTPREFIX -a ANNOT -g GENOME_FILE
+user$ clippy -h
+usage: clippy [-h] [-v] -i INPUTBED -o OUTPUTPREFIX -a ANNOT -g GENOME_FILE
                [-n [WINDOWSIZE]] [-up [UPSTREAM_EXTENSION]]
                [-down [DOWNSTREAM_EXTENSION]] [-x [ADJUST]]
                [-hc [HEIGHT_CUTOFF]] [-mg [MINGENECOUNTS]]
@@ -99,17 +84,10 @@ The code only requires that you have a feature labelled "gene" in the 3rd column
 
 ### Run test data
 
-Get peaks for one gene along with an image of that gene.
-
-```
-python clip.py -i tests/data/crosslinkcounts.bed -o test_plot -a tests/data/annot.gff \
--n 50 -x 1 -mg 5 -mb 5 -g pmt2 -hc 0.8
-```
-
 Start a test instance of the interactive parameter search server:
 
 ```
-python clip.py -i tests/data/crosslinkcounts.bed -o TESTING -a tests/data/annot.gff -int
+python clip.py -i tests/data/crosslinkcounts.bed -o test_plot -a tests/data/annot.gff -g tests/data/genome.fa.fai -int
 ```
 
 #### Test data generation
