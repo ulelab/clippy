@@ -7,6 +7,7 @@ A wrapper around scipy "[find_peaks](https://docs.scipy.org/doc/scipy/reference/
 Clippy is now available to install from Bioconda:
 ```
 conda create --name clippy python=3.8
+conda activate clippy
 conda install -c bioconda -c conda-forge clippy 
 ```
 
