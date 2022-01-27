@@ -27,10 +27,13 @@ conda install -c bioconda clippy
 ```
 
 ```
-user$ python clip.py -h
-usage: clip.py [-h] -i INPUTBED -o OUTPUTPREFIX -a ANNOT [-n [WINDOWSIZE]]
-               [-x [ADJUST]] [-mg [MINGENECOUNTS]] [-mb [MINPEAKCOUNTS]]
-               [-d [DISTANCE]] [-g [MYGENE]]
+usage: clip.py [-h] [-v] -i INPUTBED -o OUTPUTPREFIX -a ANNOT -g GENOME_FILE
+               [-n [WINDOWSIZE]] [-up [UPSTREAM_EXTENSION]]
+               [-down [DOWNSTREAM_EXTENSION]] [-x [ADJUST]]
+               [-hc [HEIGHT_CUTOFF]] [-mg [MINGENECOUNTS]]
+               [-mb [MINPEAKCOUNTS]] [-m [MYGENE]] [-t [THREADS]]
+               [-cf [CHUNKSIZE_FACTOR]] [-int] [-nei]
+               [-inter [INTERGENIC_PEAK_THRESHOLD]] [-alt [ALT_FEATURES]]
 
 Call CLIP peaks.
 
@@ -41,11 +44,19 @@ required arguments:
                         prefix for output files
   -a ANNOT, --annot ANNOT
                         gtf annotation file
+  -g GENOME_FILE, --genome_file GENOME_FILE
+                        genome file containing chromosome lengths, used by
+                        BEDTools for genomic operations
 
 optional arguments:
   -h, --help            show this help message and exit
+  -v, --version         show program's version number and exit
   -n [WINDOWSIZE], --windowsize [WINDOWSIZE]
-                        rolling mean window size [DEFAULT 15]
+                        rolling mean window size [DEFAULT 50]
+  -up [UPSTREAM_EXTENSION], --upstream_extension [UPSTREAM_EXTENSION]
+                        upstream extension added to gene models [DEFAULT 0]
+  -down [DOWNSTREAM_EXTENSION], --downstream_extension [DOWNSTREAM_EXTENSION]
+                        downstream extension added to gene models [DEFAULT 0]
   -x [ADJUST], --adjust [ADJUST]
                         adjustment for prominence [DEFAULT 1]
   -hc [HEIGHT_CUTOFF], --height_cutoff [HEIGHT_CUTOFF]
@@ -54,17 +65,33 @@ optional arguments:
                         min counts per gene to look for peaks [DEFAULT 5]
   -mb [MINPEAKCOUNTS], --minpeakcounts [MINPEAKCOUNTS]
                         min counts per broad peak [DEFAULT 5]
-  -g [MYGENE], --mygene [MYGENE]
+  -m [MYGENE], --mygene [MYGENE]
                         gene name, limits analysis to single gene
   -t [THREADS], --threads [THREADS]
                         number of threads to use
   -cf [CHUNKSIZE_FACTOR], --chunksize_factor [CHUNKSIZE_FACTOR]
-                        A factor used to control the number of jobs given to a thread at a time. A larger number reduces the number of jobs per chunk. Only increase if you experience crashes [DEFAULT 4]
-  -int, --interactive   starts a Dash server to allow for interactive parameter tuning
+                        A factor used to control the number of jobs given to a
+                        thread at a time. A larger number reduces the number
+                        of jobs per chunk. Only increase if you experience
+                        crashes [DEFAULT 4]
+  -int, --interactive   starts a Dash server to allow for interactive
+                        parameter tuning
+  -nei, --no_exon_info  Turn off individual exon and intron thresholds
+  -inter [INTERGENIC_PEAK_THRESHOLD], --intergenic_peak_threshold [INTERGENIC_PEAK_THRESHOLD]
+                        Intergenic peaks are called by first creating
+                        intergenic regions and calling peaks on the regions as
+                        though they were genes. The regions are made by
+                        expanding intergenic crosslinks and merging the
+                        result. This parameter is the threshold number of
+                        crosslinks required to include a region. If set to
+                        zero (default), no intergenic peaks will be called.
+                        When using this mode, the intergenic regions used will
+                        be output as a GTF file. [DEFAULT 0]
+  -alt [ALT_FEATURES], --alt_features [ALT_FEATURES]
+                        A list of alternative GTF features to set individual
+                        height thresholds on in the comma-separated format
+                        <alt_feature_name>-<gtf_key>-<search_pattern>
 ```
-*A note on -g, my-gene option*
-
-When you are testing parameters you might want to check what they look like on certain genes, to save a graph of a given gene provide the name or reference (as in your annotation) and the code will only run for your given gene and output a graph like the one below in the 'concept' section. It will save with the gene name and parameters as a file name.
 
 *A note on annotation gff*
 
