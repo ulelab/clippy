@@ -616,19 +616,19 @@ def get_flanking_regions(annot_gene_bed, genome_filepath, up_ext, down_ext):
 
 
 def import_annot(annot_filepath, no_exon_info):
-    features = ['gene']
+    features = ["gene"]
     if not no_exon_info:
-        features.append('exon')
+        features.append("exon")
     annot_tmp = tempfile.NamedTemporaryFile("wt", delete=False)
     try:
-        with gzip.open(annot_filepath, 'rt') as gtf_in:
+        with gzip.open(annot_filepath, "rt") as gtf_in:
             for line in gtf_in:
-                if not line.startswith('#') and line.split('\t')[2] in features:
+                if not line.startswith("#") and line.split("\t")[2] in features:
                     annot_tmp.write(line)
     except gzip.BadGzipFile:
         with open(annot_filepath) as gtf_in:
             for line in gtf_in:
-                if not line.startswith('#') and line.split('\t')[2] in features:
+                if not line.startswith("#") and line.split("\t")[2] in features:
                     annot_tmp.write(line)
     annot_tmp.close()
 
@@ -659,10 +659,7 @@ def import_annot(annot_filepath, no_exon_info):
         ]
         annot_exons = {x: y for x, y in annot_exons.groupby("gene_id", as_index=False)}
 
-    return(
-        annot[annot.feature_type == "gene"].copy(True),
-        annot_exons
-    )
+    return (annot[annot.feature_type == "gene"].copy(True), annot_exons)
 
 
 def getAllPeaks(
@@ -746,9 +743,9 @@ def getAllPeaks(
             "strand",
             "gene_start",
             "gene_stop",
-            "gene_name"
+            "gene_name",
         ],
-        usecols=[0, 1, 2, 4, 5, 9, 10, 14]
+        usecols=[0, 1, 2, 4, 5, 9, 10, 14],
     )
 
     gene_flank_dict = {

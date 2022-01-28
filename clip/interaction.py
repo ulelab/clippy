@@ -285,9 +285,7 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label(
-                                                "Minimum counts per peak"
-                                            ),
+                                            dash_html.Label("Minimum counts per peak"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
