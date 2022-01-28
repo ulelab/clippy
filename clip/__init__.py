@@ -16,6 +16,7 @@ import sys
 import clip.interaction
 from multiprocessing import Pool
 import re
+import gzip
 
 from clip.__about__ import (
     __title__,
@@ -614,6 +615,56 @@ def get_flanking_regions(annot_gene_bed, genome_filepath, up_ext, down_ext):
     return valid_flanks
 
 
+def import_annot(annot_filepath, no_exon_info):
+    features = ['gene']
+    if not no_exon_info:
+        features.append('exon')
+    annot_tmp = tempfile.NamedTemporaryFile("wt", delete=False)
+    try:
+        with gzip.open(annot_filepath, 'rt') as gtf_in:
+            for line in gtf_in:
+                if not line.startswith('#') and line.split('\t')[2] in features:
+                    annot_tmp.write(line)
+    except gzip.BadGzipFile:
+        with open(annot_filepath) as gtf_in:
+            for line in gtf_in:
+                if not line.startswith('#') and line.split('\t')[2] in features:
+                    annot_tmp.write(line)
+    annot_tmp.close()
+
+    annot = pd.read_table(
+        annot_tmp.name,
+        header=None,
+        names=[
+            "chrom",
+            "source",
+            "feature_type",
+            "start",
+            "end",
+            "score",
+            "strand",
+            "frame",
+            "attributes",
+        ],
+        comment="#",
+    )
+
+    # Set up exon information
+    annot_exons = None
+    if not no_exon_info:
+        annot_exons = annot[annot.feature_type == "exon"].copy(True)
+        annot_exons["gene_id"] = [
+            get_gtf_attr_dict(attr_str)["gene_id"]
+            for attr_str in annot_exons["attributes"]
+        ]
+        annot_exons = {x: y for x, y in annot_exons.groupby("gene_id", as_index=False)}
+
+    return(
+        annot[annot.feature_type == "gene"].copy(True),
+        annot_exons
+    )
+
+
 def getAllPeaks(
     counts_bed,
     annot_filepath,
@@ -635,33 +686,8 @@ def getAllPeaks(
     if threads > 1:
         pool = Pool(threads)
     clip_bed = pybedtools.BedTool(counts_bed)
-    annot = pd.read_table(
-        annot_filepath,
-        header=None,
-        names=[
-            "chrom",
-            "source",
-            "feature_type",
-            "start",
-            "end",
-            "score",
-            "strand",
-            "frame",
-            "attributes",
-        ],
-        comment="#",
-    )
-    annot_gene = annot[annot.feature_type == "gene"].copy(True)
 
-    # Set up exon information
-    annot_exons = None
-    if not no_exon_info:
-        annot_exons = annot[annot.feature_type == "exon"].copy(True)
-        annot_exons["gene_id"] = [
-            get_gtf_attr_dict(attr_str)["gene_id"]
-            for attr_str in annot_exons["attributes"]
-        ]
-        annot_exons = {x: y for x, y in annot_exons.groupby("gene_id", as_index=False)}
+    annot_gene, annot_exons = import_annot(annot_filepath, no_exon_info)
 
     #  Setup alt_features
     annot_alt_features = None
