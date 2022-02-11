@@ -1,7 +1,0 @@
-chr11	93721586	93721587	"gene_id ""ENSG00000275146.1""; gene_type ""snoRNA""; gene_name ""ENSG10010135528.1""; level 3;"	.	+
-chr11	93721654	93721655	"gene_id ""ENSG00000166004.15""; gene_type ""protein_coding""; gene_name ""CEP295""; level 1; hgnc_id ""HGNC:29366""; tag ""ncRNA_host""; tag ""overlapping_locus""; havana_gene ""OTTHUMG00000167449.5"";"	.	+
-chr11	93721733	93721734	"gene_id ""ENSG00000166004.15""; gene_type ""protein_coding""; gene_name ""CEP295""; level 1; hgnc_id ""HGNC:29366""; tag ""ncRNA_host""; tag ""overlapping_locus""; havana_gene ""OTTHUMG00000167449.5"";"	.	+
-chr11	93721745	93721746	"gene_id ""ENSG00000166004.15""; gene_type ""protein_coding""; gene_name ""CEP295""; level 1; hgnc_id ""HGNC:29366""; tag ""ncRNA_host""; tag ""overlapping_locus""; havana_gene ""OTTHUMG00000167449.5"";"	.	+
-chr11	93721745	93721746	"gene_id ""ENSG00000254911.3""; gene_type ""lncRNA""; gene_name ""SCARNA9""; level 2; hgnc_id ""HGNC:32566""; tag ""ncRNA_host""; tag ""overlapping_locus""; havana_gene ""OTTHUMG00000167450.2"";"	.	+
-chr11	93721832	93721833	"gene_id ""ENSG00000166004.15""; gene_type ""protein_coding""; gene_name ""CEP295""; level 1; hgnc_id ""HGNC:29366""; tag ""ncRNA_host""; tag ""overlapping_locus""; havana_gene ""OTTHUMG00000167449.5"";"	.	+
-chr11	93721832	93721833	"gene_id ""ENSG00000273885.1""; gene_type ""snoRNA""; gene_name ""ENSG10010138116.1""; level 3;"	.	+

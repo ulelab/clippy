@@ -16,6 +16,7 @@ import sys
 import clip.interaction
 from multiprocessing import Pool
 import re
+import gzip
 
 from clip.__about__ import (
     __title__,
@@ -492,7 +493,8 @@ def calc_chunksize(n_workers, len_iterable, factor):
 
 
 def get_the_peaks_single_arg(input_tuple):
-    return single_gene_get_peaks(*input_tuple)
+    ret = single_gene_get_peaks(*input_tuple)
+    return ret[:2]
 
 
 def get_gtf_attr_dict(attr_str):
@@ -613,6 +615,53 @@ def get_flanking_regions(annot_gene_bed, genome_filepath, up_ext, down_ext):
     return valid_flanks
 
 
+def import_annot(annot_filepath, no_exon_info):
+    features = ["gene"]
+    if not no_exon_info:
+        features.append("exon")
+    annot_tmp = tempfile.NamedTemporaryFile("wt", delete=False)
+    try:
+        with gzip.open(annot_filepath, "rt") as gtf_in:
+            for line in gtf_in:
+                if not line.startswith("#") and line.split("\t")[2] in features:
+                    annot_tmp.write(line)
+    except gzip.BadGzipFile:
+        with open(annot_filepath) as gtf_in:
+            for line in gtf_in:
+                if not line.startswith("#") and line.split("\t")[2] in features:
+                    annot_tmp.write(line)
+    annot_tmp.close()
+
+    annot = pd.read_table(
+        annot_tmp.name,
+        header=None,
+        names=[
+            "chrom",
+            "source",
+            "feature_type",
+            "start",
+            "end",
+            "score",
+            "strand",
+            "frame",
+            "attributes",
+        ],
+        comment="#",
+    )
+
+    # Set up exon information
+    annot_exons = None
+    if not no_exon_info:
+        annot_exons = annot[annot.feature_type == "exon"].copy(True)
+        annot_exons["gene_id"] = [
+            get_gtf_attr_dict(attr_str)["gene_id"]
+            for attr_str in annot_exons["attributes"]
+        ]
+        annot_exons = {x: y for x, y in annot_exons.groupby("gene_id", as_index=False)}
+
+    return (annot[annot.feature_type == "gene"].copy(True), annot_exons)
+
+
 def getAllPeaks(
     counts_bed,
     annot_filepath,
@@ -634,33 +683,8 @@ def getAllPeaks(
     if threads > 1:
         pool = Pool(threads)
     clip_bed = pybedtools.BedTool(counts_bed)
-    annot = pd.read_table(
-        annot_filepath,
-        header=None,
-        names=[
-            "chrom",
-            "source",
-            "feature_type",
-            "start",
-            "end",
-            "score",
-            "strand",
-            "frame",
-            "attributes",
-        ],
-        comment="#",
-    )
-    annot_gene = annot[annot.feature_type == "gene"].copy(True)
 
-    # Set up exon information
-    annot_exons = None
-    if not no_exon_info:
-        annot_exons = annot[annot.feature_type == "exon"].copy(True)
-        annot_exons["gene_id"] = [
-            get_gtf_attr_dict(attr_str)["gene_id"]
-            for attr_str in annot_exons["attributes"]
-        ]
-        annot_exons = {x: y for x, y in annot_exons.groupby("gene_id", as_index=False)}
+    annot_gene, annot_exons = import_annot(annot_filepath, no_exon_info)
 
     #  Setup alt_features
     annot_alt_features = None
@@ -706,39 +730,22 @@ def getAllPeaks(
         ).sort()
 
     # Split crosslinks based on overlap with features
-    goverlaps = clip_bed.intersect(annot_bed_with_flanks, s=True, wo=True).to_dataframe(
+    goverlaps_tmp = clip_bed.intersect(annot_bed_with_flanks, s=True, wo=True).saveas()
+
+    goverlaps = pd.read_csv(
+        goverlaps_tmp.fn,
+        sep="\t",
         names=[
             "chrom",
             "start",
             "end",
-            "name",
             "score",
             "strand",
-            "chrom2",
-            "source",
-            "feature",
             "gene_start",
             "gene_stop",
-            "nothing",
-            "strand2",
-            "nothing2",
             "gene_name",
-            "interval",
-        ]
-    )
-    goverlaps.drop(
-        [
-            "name",
-            "chrom2",
-            "nothing",
-            "nothing2",
-            "interval",
-            "strand2",
-            "source",
-            "feature",
         ],
-        axis=1,
-        inplace=True,
+        usecols=[0, 1, 2, 4, 5, 9, 10, 14],
     )
 
     gene_flank_dict = {
@@ -749,69 +756,72 @@ def getAllPeaks(
     }
 
     if threads > 1:
-        arguments_list = [
+        chunk_size = calc_chunksize(
+            threads, len(set(goverlaps.gene_name)), chunksize_factor
+        )
+        output_list = pool.imap(
+            get_the_peaks_single_arg,
             (
-                pd.DataFrame(y),
-                N,
-                X,
-                rel_height,
-                min_gene_count,
-                min_peak_count,
-                get_exon_annot(x, annot_exons),
-                annot_alt_features,
-                gene_flank_dict[x],
-            )
-            for x, y in goverlaps.groupby("gene_name", as_index=False)
-        ]
-        chunk_size = calc_chunksize(threads, len(arguments_list), chunksize_factor)
-        output_list = pool.imap(get_the_peaks_single_arg, arguments_list, chunk_size)
+                (
+                    pd.DataFrame(y),
+                    N,
+                    X,
+                    rel_height,
+                    min_gene_count,
+                    min_peak_count,
+                    get_exon_annot(x, annot_exons),
+                    annot_alt_features,
+                    gene_flank_dict[x],
+                )
+                for x, y in goverlaps.groupby("gene_name", as_index=False)
+            ),
+            chunk_size,
+        )
     else:
-        output_list = [
-            single_gene_get_peaks(
-                pd.DataFrame(y),
-                N,
-                X,
-                rel_height,
-                min_gene_count,
-                min_peak_count,
-                get_exon_annot(x, annot_exons),
-                annot_alt_features,
-                gene_flank_dict[x],
+        output_list = (
+            get_the_peaks_single_arg(
+                (
+                    pd.DataFrame(y),
+                    N,
+                    X,
+                    rel_height,
+                    min_gene_count,
+                    min_peak_count,
+                    get_exon_annot(x, annot_exons),
+                    annot_alt_features,
+                    gene_flank_dict[x],
+                )
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
-        ]
+        )
 
-    all_peaks = []
-    broad_peaks = []
+    all_peaks_out_f = tempfile.NamedTemporaryFile("wt", delete=False)
+    broad_peaks_out_f = tempfile.NamedTemporaryFile("wt", delete=False)
     for output in output_list:
-        (
-            peaks_in_gene,
-            broad_peaks_in_gene,
-            rollingmean,
-            peak_details,
-            heights,
-            prominences,
-        ) = output
-        if isinstance(peaks_in_gene, np.ndarray):
-            all_peaks.append(peaks_in_gene)
-            broad_peaks.append(broad_peaks_in_gene)
+        all_peaks, broad_peaks = output
+        if isinstance(all_peaks, np.ndarray):
+            for line in all_peaks:
+                all_peaks_out_f.write("\t".join(line) + "\n")
+            for line in broad_peaks:
+                broad_peaks_out_f.write("\t".join(line) + "\n")
+    all_peaks_out_f.close()
+    broad_peaks_out_f.close()
 
-    all_peaks = pd.DataFrame(np.concatenate(all_peaks))
-    all_peaks.to_csv(outfile_name, sep="\t", header=False, index=False)
-    broad_peaks = pd.DataFrame(np.concatenate(broad_peaks))
+    all_peaks_bed = pybedtools.BedTool(all_peaks_out_f.name).sort()
+    all_peaks_bed.saveas(outfile_name)
+
     overlapping_features = get_overlapping_feature_bed(
         annot_bed_with_flanks, genome_file
     )
+
     filtered_broad_peaks = None
     if overlapping_features is None:
-        filtered_broad_peaks = pybedtools.BedTool.from_dataframe(broad_peaks)
+        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name)
     else:
-        filtered_broad_peaks = pybedtools.BedTool.from_dataframe(broad_peaks).intersect(
+        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name).intersect(
             overlapping_features, v=True, s=True
         )
 
-    all_peaks_bed = pybedtools.BedTool.from_dataframe(all_peaks).sort()
-    all_peaks_bed.saveas(outfile_name)
     print("Finished, written summits file.")
     return (all_peaks_bed, filtered_broad_peaks)
 
