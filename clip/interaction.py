@@ -377,6 +377,24 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Checklist(
+                                                        id="alt-threshold-bool",
+                                                        options=[
+                                                            {
+                                                                "label": "Alternative prominence threshold",
+                                                                "value": 1,
+                                                            }
+                                                        ],
+                                                        value=[1],
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
                                         ],
                                         className="card-body",
                                     ),
@@ -405,6 +423,7 @@ class DashApp:
             Input("up-ext-slider", "value"),
             Input("down-ext-slider", "value"),
             Input("exon-intron-bool", "value"),
+            Input("alt-threshold-bool", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
         self.app.callback(
@@ -486,6 +505,7 @@ class DashApp:
         up_ext,
         down_ext,
         exon_intron_bool,
+        alt_prominence_threshold_bool,
         current_figures,
     ):
         # Subset the xlink BED file for each gene
@@ -570,6 +590,7 @@ class DashApp:
                     up_ext,
                     down_ext,
                     exon_intron_bool,
+                    alt_prominence_threshold_bool,
                     current_figures,
                 )
             ]
@@ -586,6 +607,7 @@ class DashApp:
                     up_ext,
                     down_ext,
                     exon_intron_bool,
+                    alt_prominence_threshold_bool,
                     current_figures,
                 )
                 for gene in gene_list
@@ -617,6 +639,7 @@ class DashApp:
         up_ext,
         down_ext,
         exon_intron_bool,
+        alt_prominence_threshold_bool,
         current_figures,
     ):
         # Perform the peak calling if the gene is valid
@@ -748,6 +771,7 @@ class DashApp:
                 annot_exon,
                 annot_alt_features,
                 gene_with_flanks_df,
+                alt_prominence_threshold_bool,
             )
             if not isinstance(peaks, np.ndarray):
                 (
