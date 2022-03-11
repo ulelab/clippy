@@ -2,6 +2,7 @@ import numpy as np
 from numpy.matrixlib.defmatrix import _from_string
 import scipy.signal as sig
 from scipy.ndimage.filters import uniform_filter1d
+from scipy.ndimage import generic_filter1d
 from scipy import stats
 import pybedtools
 import pybedtools.featurefuncs
@@ -49,6 +50,7 @@ def main():
         genome_file,
         intergenic_peak_threshold,
         alt_prominence_threshold,
+        threshold_window_size,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
@@ -74,6 +76,7 @@ def main():
                 genome_file,
                 intergenic_peak_threshold,
                 alt_prominence_threshold,
+                threshold_window_size,
             )
             outfile_name = outfile_name.replace(".bed", "_Peaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
@@ -269,6 +272,14 @@ def parse_arguments(input_arguments):
         action="store_true",
         help="Activate alternative peak thresholding using mean * prominence_adjustment rather than mean + (stdev * prominence_adjustment)",
     )
+    optional.add_argument(
+        "-wt",
+        "--threshold_window_size",
+        type=int,
+        default=0,
+        nargs="?",
+        help="Window size for dynamic thresholding. If set to zero (the default) then no dynamic thresholding will be done.",
+    )
     parser._action_groups.append(optional)
     args = parser.parse_args(input_arguments)
     print(args)
@@ -304,6 +315,7 @@ def parse_arguments(input_arguments):
         args.genome_file,
         args.intergenic_peak_threshold,
         args.alt_threshold,
+        args.threshold_window_size,
     )
 
 
@@ -318,6 +330,7 @@ def single_gene_get_peaks(
     alt_features,
     gene_flank_annot,
     alt_prominence_threshold,
+    threshold_window_size,
 ):
     # Get the peaks for one gene
     # Now need to get an array of values
@@ -401,36 +414,45 @@ def single_gene_get_peaks(
             np.concatenate((values_dict["intron"], values_dict["exon"]))
         )
 
-    heights = np.amax(
-        (
-            feature_mask.transpose()
-            * [mean_dict[feature_name] for feature_name in feature_names]
-        ),
-        1,
-    )
+    if threshold_window_size > 0:
+        heights = uniform_filter1d(scores.astype("float"), size=threshold_window_size)
 
-    prominences = (
-        np.amax(
+        if alt_prominence_threshold:
+            def sliding_window(in_vec, out_vec, in_func, filter_size):
+                out_vec[:] = [in_func(in_vec[i:(i+filter_size)]) for i in range(len(in_vec)-filter_size+1)]
+            prominences = generic_filter1d(scores.astype("float"), sliding_window, threshold_window_size, extra_arguments=(np.std, threshold_window_size)) * X
+        else:
+            prominences = heights * X
+
+    elif threshold_window_size == 0:
+        heights = np.amax(
             (
                 feature_mask.transpose()
-                * [std_dict[feature_name] for feature_name in feature_names]
+                * [mean_dict[feature_name] for feature_name in feature_names]
             ),
             1,
         )
-        * X
-    )
-
-    if alt_prominence_threshold:
         prominences = (
             np.amax(
                 (
                     feature_mask.transpose()
-                    * [mean_dict[feature_name] for feature_name in feature_names]
+                    * [std_dict[feature_name] for feature_name in feature_names]
                 ),
                 1,
             )
             * X
         )
+        if alt_prominence_threshold:
+            prominences = (
+                np.amax(
+                    (
+                        feature_mask.transpose()
+                        * [mean_dict[feature_name] for feature_name in feature_names]
+                    ),
+                    1,
+                )
+                * X
+            )
 
     peaks = sig.find_peaks(
         roll_mean_smoothed_scores,
@@ -702,6 +724,7 @@ def getAllPeaks(
     genome_file,
     intergenic_peak_threshold,
     alt_prominence_threshold,
+    threshold_window_size,
 ):
     if threads > 1:
         pool = Pool(threads)
@@ -796,6 +819,7 @@ def getAllPeaks(
                     annot_alt_features,
                     gene_flank_dict[x],
                     alt_prominence_threshold,
+                    threshold_window_size,
                 )
                 for x, y in goverlaps.groupby("gene_name", as_index=False)
             ),
@@ -815,6 +839,7 @@ def getAllPeaks(
                     annot_alt_features,
                     gene_flank_dict[x],
                     alt_prominence_threshold,
+                    threshold_window_size,
                 )
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
