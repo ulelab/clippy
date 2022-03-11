@@ -968,19 +968,7 @@ class DashApp:
             )
             # Filter out the broad peaks which overlap these regions of gene
             # overlap
-            filtered_broad_peaks = None
-            if overlapping_features is None:
-                filtered_broad_peaks = broad_peaks
-            else:
-                filtered_broad_peaks = pybedtools.BedTool.from_dataframe(
-                    pd.DataFrame(broad_peaks)
-                ).intersect(overlapping_features, v=True, s=True)
-                if filtered_broad_peaks.count() == 0:
-                    filtered_broad_peaks = []
-                else:
-                    filtered_broad_peaks = (
-                        filtered_broad_peaks.to_dataframe().to_numpy()
-                    )
+            filtered_broad_peaks = broad_peaks
 
             # add broad peaks as boxes
             fig.add_trace(

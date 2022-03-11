@@ -860,17 +860,7 @@ def getAllPeaks(
     all_peaks_bed = pybedtools.BedTool(all_peaks_out_f.name).sort()
     all_peaks_bed.saveas(outfile_name)
 
-    overlapping_features = get_overlapping_feature_bed(
-        annot_bed_with_flanks, genome_file
-    )
-
-    filtered_broad_peaks = None
-    if overlapping_features is None:
-        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name)
-    else:
-        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name).intersect(
-            overlapping_features, v=True, s=True
-        )
+    filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name)
 
     print("Finished, written summits file.")
     return (all_peaks_bed, filtered_broad_peaks)
