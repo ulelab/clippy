@@ -418,11 +418,11 @@ def single_gene_get_peaks(
         heights = uniform_filter1d(scores.astype("float"), size=threshold_window_size)
 
         if alt_prominence_threshold:
+            prominences = heights * X
+        else:
             def sliding_window(in_vec, out_vec, in_func, filter_size):
                 out_vec[:] = [in_func(in_vec[i:(i+filter_size)]) for i in range(len(in_vec)-filter_size+1)]
             prominences = generic_filter1d(scores.astype("float"), sliding_window, threshold_window_size, extra_arguments=(np.std, threshold_window_size)) * X
-        else:
-            prominences = heights * X
 
     elif threshold_window_size == 0:
         heights = np.amax(
