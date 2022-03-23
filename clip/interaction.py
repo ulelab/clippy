@@ -239,6 +239,26 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            dash_html.Label("Minimum height adjustment"),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="min-height-adjust-slider",
+                                                        min=0,
+                                                        max=10,
+                                                        step=0.1,
+                                                        value=1,
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
                                             dash_html.Label(
                                                 "Relative height (peak threshold)"
                                             ),
@@ -438,6 +458,7 @@ class DashApp:
             Input("exon-intron-bool", "value"),
             Input("alt-threshold-bool", "value"),
             Input("threshold-window-size", "value"),
+            Input("min-height-adjust-slider", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
         self.app.callback(
@@ -521,6 +542,7 @@ class DashApp:
         exon_intron_bool,
         alt_prominence_threshold_bool,
         threshold_window_size,
+        min_height_adjust,
         current_figures,
     ):
         if threshold_window_size:
@@ -612,6 +634,7 @@ class DashApp:
                     exon_intron_bool,
                     alt_prominence_threshold_bool,
                     threshold_window_size,
+                    min_height_adjust,
                     current_figures,
                 )
             ]
@@ -630,6 +653,7 @@ class DashApp:
                     exon_intron_bool,
                     alt_prominence_threshold_bool,
                     threshold_window_size,
+                    min_height_adjust,
                     current_figures,
                 )
                 for gene in gene_list
@@ -663,6 +687,7 @@ class DashApp:
         exon_intron_bool,
         alt_prominence_threshold_bool,
         threshold_window_size,
+        min_height_adjust,
         current_figures,
     ):
         # Perform the peak calling if the gene is valid
@@ -796,6 +821,7 @@ class DashApp:
                 gene_with_flanks_df,
                 alt_prominence_threshold_bool,
                 threshold_window_size,
+                min_height_adjust,
             )
             if not isinstance(peaks, np.ndarray):
                 (
@@ -954,20 +980,6 @@ class DashApp:
                 col=1,
             )
 
-            # Create a BEDTool of the nearby genes and their flanks
-            genes_and_flanks_bed = (
-                pybedtools.BedTool.from_dataframe(
-                    self.gene_overlap_dict[gene_name].iloc[:, :9]
-                )
-                .cat(gene_flanks_bed, postmerge=False)
-                .sort()
-            )
-            # Find the overlaps these features have
-            overlapping_features = clip.get_overlapping_feature_bed(
-                genes_and_flanks_bed, self.genome_file,
-            )
-            # Filter out the broad peaks which overlap these regions of gene
-            # overlap
             filtered_broad_peaks = broad_peaks
 
             # add broad peaks as boxes

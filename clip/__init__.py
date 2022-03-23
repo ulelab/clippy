@@ -51,6 +51,7 @@ def main():
         intergenic_peak_threshold,
         alt_prominence_threshold,
         threshold_window_size,
+        min_height_adjust,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
@@ -77,6 +78,7 @@ def main():
                 intergenic_peak_threshold,
                 alt_prominence_threshold,
                 threshold_window_size,
+                min_height_adjust,
             )
             outfile_name = outfile_name.replace(".bed", "_Peaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
@@ -280,6 +282,14 @@ def parse_arguments(input_arguments):
         nargs="?",
         help="Window size for dynamic thresholding. If set to zero (the default) then no dynamic thresholding will be done.",
     )
+    optional.add_argument(
+        "-mx",
+        "--min_height_adjust",
+        type=float,
+        default=1,
+        nargs="?",
+        help="adjustment for the minimum height threshold, calculated as this value multiplied by the mean [DEFAULT 1]",
+    )
     parser._action_groups.append(optional)
     args = parser.parse_args(input_arguments)
     print(args)
@@ -316,6 +326,7 @@ def parse_arguments(input_arguments):
         args.intergenic_peak_threshold,
         args.alt_threshold,
         args.threshold_window_size,
+        args.min_height_adjust,
     )
 
 
@@ -331,6 +342,7 @@ def single_gene_get_peaks(
     gene_flank_annot,
     alt_prominence_threshold,
     threshold_window_size,
+    min_height_adjust,
 ):
     # Get the peaks for one gene
     # Now need to get an array of values
@@ -424,13 +436,18 @@ def single_gene_get_peaks(
                 out_vec[:] = [in_func(in_vec[i:(i+filter_size)]) for i in range(len(in_vec)-filter_size+1)]
             prominences = generic_filter1d(scores.astype("float"), sliding_window, threshold_window_size, extra_arguments=(np.std, threshold_window_size)) * X
 
+        heights *= min_height_adjust
+
     elif threshold_window_size == 0:
-        heights = np.amax(
-            (
-                feature_mask.transpose()
-                * [mean_dict[feature_name] for feature_name in feature_names]
-            ),
-            1,
+        heights = (
+            np.amax(
+                (
+                    feature_mask.transpose()
+                    * [mean_dict[feature_name] for feature_name in feature_names]
+                ),
+                1,
+            )
+            * min_height_adjust
         )
         prominences = (
             np.amax(
@@ -725,6 +742,7 @@ def getAllPeaks(
     intergenic_peak_threshold,
     alt_prominence_threshold,
     threshold_window_size,
+    min_height_adjust,
 ):
     if threads > 1:
         pool = Pool(threads)
@@ -820,6 +838,7 @@ def getAllPeaks(
                     gene_flank_dict[x],
                     alt_prominence_threshold,
                     threshold_window_size,
+                    min_height_adjust,
                 )
                 for x, y in goverlaps.groupby("gene_name", as_index=False)
             ),
@@ -840,6 +859,7 @@ def getAllPeaks(
                     gene_flank_dict[x],
                     alt_prominence_threshold,
                     threshold_window_size,
+                    min_height_adjust,
                 )
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
