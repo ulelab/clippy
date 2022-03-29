@@ -450,15 +450,20 @@ def single_gene_get_peaks(
             * min_height_adjust
         )
         prominences = (
-            np.amax(
-                (
-                    feature_mask.transpose()
-                    * [std_dict[feature_name] for feature_name in feature_names]
-                ),
-                1,
+            X /
+            (
+                np.amax(
+                    (
+                        feature_mask.transpose()
+                        * [std_dict[feature_name] for feature_name in feature_names]
+                    ),
+                    1,
+                )
+                + X
             )
-            * X
-        )
+        ) * max(roll_mean_smoothed_scores)
+        # print("X: {}\nmax: {}\ncalc: {}\nsds: {}".format(X, max(roll_mean_smoothed_scores), max(prominences), std_dict))
+
         if alt_prominence_threshold:
             prominences = (
                 np.amax(
