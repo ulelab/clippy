@@ -397,37 +397,6 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Div(
-                                                [
-                                                    dash_cc.Checklist(
-                                                        id="alt-threshold-bool",
-                                                        options=[
-                                                            {
-                                                                "label": "Alternative prominence threshold",
-                                                                "value": 1,
-                                                            }
-                                                        ],
-                                                        value=[1],
-                                                    )
-                                                ],
-                                                style={
-                                                    "marginBottom": "1.5em",
-                                                    "marginTop": "0.5em",
-                                                },
-                                            ),
-                                            dash_html.Label("Rolling threshold window size"),
-                                            dash_html.Div(
-                                                [
-                                                    dash_cc.Textarea(
-                                                        id="threshold-window-size",
-                                                        placeholder="e.g. 1000",
-                                                    )
-                                                ],
-                                                style={
-                                                    "marginBottom": "1.5em",
-                                                    "marginTop": "0.5em",
-                                                },
-                                            ),
                                         ],
                                         className="card-body",
                                     ),
@@ -456,8 +425,6 @@ class DashApp:
             Input("up-ext-slider", "value"),
             Input("down-ext-slider", "value"),
             Input("exon-intron-bool", "value"),
-            Input("alt-threshold-bool", "value"),
-            Input("threshold-window-size", "value"),
             Input("min-height-adjust-slider", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
@@ -540,16 +507,9 @@ class DashApp:
         up_ext,
         down_ext,
         exon_intron_bool,
-        alt_prominence_threshold_bool,
-        threshold_window_size,
         min_height_adjust,
         current_figures,
     ):
-        if threshold_window_size:
-            threshold_window_size = int(threshold_window_size)
-        else:
-            threshold_window_size = 0
-
         # Subset the xlink BED file for each gene
         if len(gene_list) > 0:
             for gene in gene_list:
@@ -632,8 +592,6 @@ class DashApp:
                     up_ext,
                     down_ext,
                     exon_intron_bool,
-                    alt_prominence_threshold_bool,
-                    threshold_window_size,
                     min_height_adjust,
                     current_figures,
                 )
@@ -651,8 +609,6 @@ class DashApp:
                     up_ext,
                     down_ext,
                     exon_intron_bool,
-                    alt_prominence_threshold_bool,
-                    threshold_window_size,
                     min_height_adjust,
                     current_figures,
                 )
@@ -685,8 +641,6 @@ class DashApp:
         up_ext,
         down_ext,
         exon_intron_bool,
-        alt_prominence_threshold_bool,
-        threshold_window_size,
         min_height_adjust,
         current_figures,
     ):
@@ -819,8 +773,6 @@ class DashApp:
                 annot_exon,
                 annot_alt_features,
                 gene_with_flanks_df,
-                alt_prominence_threshold_bool,
-                threshold_window_size,
                 min_height_adjust,
             )
             if not isinstance(peaks, np.ndarray):
