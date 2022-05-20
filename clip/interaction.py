@@ -239,6 +239,26 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            dash_html.Label("Minimum height adjustment"),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="min-height-adjust-slider",
+                                                        min=0,
+                                                        max=10,
+                                                        step=0.1,
+                                                        value=1,
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
                                             dash_html.Label(
                                                 "Relative height (peak threshold)"
                                             ),
@@ -405,6 +425,7 @@ class DashApp:
             Input("up-ext-slider", "value"),
             Input("down-ext-slider", "value"),
             Input("exon-intron-bool", "value"),
+            Input("min-height-adjust-slider", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
         self.app.callback(
@@ -486,6 +507,7 @@ class DashApp:
         up_ext,
         down_ext,
         exon_intron_bool,
+        min_height_adjust,
         current_figures,
     ):
         # Subset the xlink BED file for each gene
@@ -570,6 +592,7 @@ class DashApp:
                     up_ext,
                     down_ext,
                     exon_intron_bool,
+                    min_height_adjust,
                     current_figures,
                 )
             ]
@@ -586,6 +609,7 @@ class DashApp:
                     up_ext,
                     down_ext,
                     exon_intron_bool,
+                    min_height_adjust,
                     current_figures,
                 )
                 for gene in gene_list
@@ -617,6 +641,7 @@ class DashApp:
         up_ext,
         down_ext,
         exon_intron_bool,
+        min_height_adjust,
         current_figures,
     ):
         # Perform the peak calling if the gene is valid
@@ -748,6 +773,7 @@ class DashApp:
                 annot_exon,
                 annot_alt_features,
                 gene_with_flanks_df,
+                min_height_adjust,
             )
             if not isinstance(peaks, np.ndarray):
                 (
@@ -906,33 +932,7 @@ class DashApp:
                 col=1,
             )
 
-            # Create a BEDTool of the nearby genes and their flanks
-            genes_and_flanks_bed = (
-                pybedtools.BedTool.from_dataframe(
-                    self.gene_overlap_dict[gene_name].iloc[:, :9]
-                )
-                .cat(gene_flanks_bed, postmerge=False)
-                .sort()
-            )
-            # Find the overlaps these features have
-            overlapping_features = clip.get_overlapping_feature_bed(
-                genes_and_flanks_bed, self.genome_file,
-            )
-            # Filter out the broad peaks which overlap these regions of gene
-            # overlap
-            filtered_broad_peaks = None
-            if overlapping_features is None:
-                filtered_broad_peaks = broad_peaks
-            else:
-                filtered_broad_peaks = pybedtools.BedTool.from_dataframe(
-                    pd.DataFrame(broad_peaks)
-                ).intersect(overlapping_features, v=True, s=True)
-                if filtered_broad_peaks.count() == 0:
-                    filtered_broad_peaks = []
-                else:
-                    filtered_broad_peaks = (
-                        filtered_broad_peaks.to_dataframe().to_numpy()
-                    )
+            filtered_broad_peaks = broad_peaks
 
             # add broad peaks as boxes
             fig.add_trace(

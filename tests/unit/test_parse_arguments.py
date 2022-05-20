@@ -17,11 +17,11 @@ def test_minimal_argument():
     assert args == (
         "test.bed",
         "test.gtf",
-        15,
+        10,
         1,
-        0.8,
+        0.4,
         5,
-        "test_rollmean15_stdev1_minGeneCount5_Summits.bed",
+        "test_rollmean10_stdev1_minGeneCount5_Summits.bed",
         None,
         5,
         1,
@@ -33,6 +33,7 @@ def test_minimal_argument():
         0,
         "genome.fa.fai",
         0,
+        1,
     )
 
 
@@ -62,7 +63,7 @@ def test_optional_argument():
         "test.gtf",
         100,
         1,
-        0.8,
+        0.4,
         5,
         "test_rollmean100_stdev1_minGeneCount5_Summits.bed",
         None,
@@ -76,4 +77,5 @@ def test_optional_argument():
         0,
         "genome.fa.fai",
         10,
+        1,
     )

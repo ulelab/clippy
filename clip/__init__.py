@@ -48,6 +48,7 @@ def main():
         down_ext,
         genome_file,
         intergenic_peak_threshold,
+        min_height_adjust,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
@@ -72,6 +73,7 @@ def main():
                 down_ext,
                 genome_file,
                 intergenic_peak_threshold,
+                min_height_adjust,
             )
             outfile_name = outfile_name.replace(".bed", "_Peaks.bed")
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
@@ -143,9 +145,9 @@ def parse_arguments(input_arguments):
         "-n",
         "--windowsize",
         type=int,
-        default=15,
+        default=10,
         nargs="?",
-        help="rolling mean window size [DEFAULT 50]",
+        help="rolling mean window size [DEFAULT 10]",
     )
     optional.add_argument(
         "-up",
@@ -175,9 +177,9 @@ def parse_arguments(input_arguments):
         "-hc",
         "--height_cutoff",
         type=float,
-        default=0.8,
+        default=0.4,
         nargs="?",
-        help="proportion of prominence [DEFAULT 0.8]",
+        help="proportion of prominence [DEFAULT 0.4]",
     )
     optional.add_argument(
         "-mg",
@@ -261,6 +263,14 @@ def parse_arguments(input_arguments):
             "<alt_feature_name>-<gtf_key>-<search_pattern>"
         ),
     )
+    optional.add_argument(
+        "-mx",
+        "--min_height_adjust",
+        type=float,
+        default=1,
+        nargs="?",
+        help="adjustment for the minimum height threshold, calculated as this value multiplied by the mean [DEFAULT 1]",
+    )
     parser._action_groups.append(optional)
     args = parser.parse_args(input_arguments)
     print(args)
@@ -295,6 +305,7 @@ def parse_arguments(input_arguments):
         args.downstream_extension,
         args.genome_file,
         args.intergenic_peak_threshold,
+        args.min_height_adjust,
     )
 
 
@@ -308,6 +319,7 @@ def single_gene_get_peaks(
     annot_exon,
     alt_features,
     gene_flank_annot,
+    min_height_adjust,
 ):
     # Get the peaks for one gene
     # Now need to get an array of values
@@ -366,7 +378,6 @@ def single_gene_get_peaks(
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
 
     mean_dict = {}
-    std_dict = {}
     values_dict = {}
     for feature_idx, feature_name in enumerate(feature_names):
         feature_values = roll_mean_smoothed_scores[feature_mask[feature_idx]]
@@ -376,10 +387,8 @@ def single_gene_get_peaks(
         values_dict[feature_name] = feature_values
         if len(feature_values) > 0:
             mean_dict[feature_name] = np.mean(feature_values)
-            std_dict[feature_name] = np.std(feature_values)
         else:
             mean_dict[feature_name] = 0.0
-            std_dict[feature_name] = 0.0
 
     # In the case that the intron mean is greater than the exon mean, use the
     #  entire gene for the threshold
@@ -387,23 +396,22 @@ def single_gene_get_peaks(
         mean_dict["exon"] = np.mean(
             np.concatenate((values_dict["intron"], values_dict["exon"]))
         )
-        std_dict["exon"] = np.std(
-            np.concatenate((values_dict["intron"], values_dict["exon"]))
+
+    heights = (
+        np.amax(
+            (
+                feature_mask.transpose()
+                * [mean_dict[feature_name] for feature_name in feature_names]
+            ),
+            1,
         )
-
-    heights = np.amax(
-        (
-            feature_mask.transpose()
-            * [mean_dict[feature_name] for feature_name in feature_names]
-        ),
-        1,
+        * min_height_adjust
     )
-
     prominences = (
         np.amax(
             (
                 feature_mask.transpose()
-                * [std_dict[feature_name] for feature_name in feature_names]
+                * [mean_dict[feature_name] for feature_name in feature_names]
             ),
             1,
         )
@@ -679,6 +687,7 @@ def getAllPeaks(
     down_ext,
     genome_file,
     intergenic_peak_threshold,
+    min_height_adjust,
 ):
     if threads > 1:
         pool = Pool(threads)
@@ -772,6 +781,7 @@ def getAllPeaks(
                     get_exon_annot(x, annot_exons),
                     annot_alt_features,
                     gene_flank_dict[x],
+                    min_height_adjust,
                 )
                 for x, y in goverlaps.groupby("gene_name", as_index=False)
             ),
@@ -790,6 +800,7 @@ def getAllPeaks(
                     get_exon_annot(x, annot_exons),
                     annot_alt_features,
                     gene_flank_dict[x],
+                    min_height_adjust,
                 )
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
@@ -810,17 +821,7 @@ def getAllPeaks(
     all_peaks_bed = pybedtools.BedTool(all_peaks_out_f.name).sort()
     all_peaks_bed.saveas(outfile_name)
 
-    overlapping_features = get_overlapping_feature_bed(
-        annot_bed_with_flanks, genome_file
-    )
-
-    filtered_broad_peaks = None
-    if overlapping_features is None:
-        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name)
-    else:
-        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name).intersect(
-            overlapping_features, v=True, s=True
-        )
+    filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name)
 
     print("Finished, written summits file.")
     return (all_peaks_bed, filtered_broad_peaks)
