@@ -98,8 +98,9 @@ def parse_arguments(input_arguments):
         type=str,
         required=True,
         help=(
-            "genome file containing chromosome lengths, used by BEDTools for "
-            "genomic operations"
+            "genome file containing chromosome lengths. Also known as a FASTA",
+            "index file, which usually ends in .fai. This file is used by",
+            "BEDTools for genomic operations",
         ),
     )
     optional.add_argument(
