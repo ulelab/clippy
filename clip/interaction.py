@@ -240,6 +240,28 @@ class DashApp:
                                                 },
                                             ),
                                             dash_html.Label(
+                                                "Minimum height adjustment"
+                                            ),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="min-height-adjust-slider",
+                                                        min=0,
+                                                        max=10,
+                                                        step=0.1,
+                                                        value=1,
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
+                                            dash_html.Label(
                                                 "Relative height (peak threshold)"
                                             ),
                                             dash_html.Div(
@@ -405,6 +427,7 @@ class DashApp:
             Input("up-ext-slider", "value"),
             Input("down-ext-slider", "value"),
             Input("exon-intron-bool", "value"),
+            Input("min-height-adjust-slider", "value"),
             State("gene-graphs", "children"),
         )(self.update_figures)
         self.app.callback(
@@ -486,6 +509,7 @@ class DashApp:
         up_ext,
         down_ext,
         exon_intron_bool,
+        min_height_adjust,
         current_figures,
     ):
         # Subset the xlink BED file for each gene
@@ -528,35 +552,40 @@ class DashApp:
                             "interval",
                         ]
                     )
-                    # Find the gene's exons
-                    gene_id = self.format_gene_list(
-                        self.gene_xlink_dicts[gene].attributes.tolist(), ["gene_id"],
-                    )[0]
-                    self.gene_exon_dicts[gene] = self.exon_annot.loc[
-                        self.exon_annot.attributes.str.contains('"{}"'.format(gene_id)),
-                        :,
-                    ].copy()
-                    self.gene_exon_dicts[gene].loc[
-                        :, "transcript_names"
-                    ] = self.format_gene_list(
-                        self.gene_exon_dicts[gene].attributes.tolist()
-                    )
-                    # Drop unnecessary columns from the crosslink table
-                    self.gene_xlink_dicts[gene].drop(
-                        [
-                            "name",
-                            "chrom2",
-                            "nothing",
-                            "nothing2",
-                            "interval",
-                            "strand2",
-                            "source",
-                            "feature",
-                            "attributes",
-                        ],
-                        axis=1,
-                        inplace=True,
-                    )
+                    # If there are any crosslinks in the gene
+                    if len(self.gene_xlink_dicts[gene]) > 0:
+                        # Find the gene's exons
+                        gene_id = self.format_gene_list(
+                            self.gene_xlink_dicts[gene].attributes.tolist(),
+                            ["gene_id"],
+                        )[0]
+                        self.gene_exon_dicts[gene] = self.exon_annot.loc[
+                            self.exon_annot.attributes.str.contains(
+                                '"{}"'.format(gene_id)
+                            ),
+                            :,
+                        ].copy()
+                        self.gene_exon_dicts[gene].loc[
+                            :, "transcript_names"
+                        ] = self.format_gene_list(
+                            self.gene_exon_dicts[gene].attributes.tolist()
+                        )
+                        # Drop unnecessary columns from the crosslink table
+                        self.gene_xlink_dicts[gene].drop(
+                            [
+                                "name",
+                                "chrom2",
+                                "nothing",
+                                "nothing2",
+                                "interval",
+                                "strand2",
+                                "source",
+                                "feature",
+                                "attributes",
+                            ],
+                            axis=1,
+                            inplace=True,
+                        )
         if len(gene_list) == 0:
             figs = [
                 self.peak_call_and_plot(
@@ -570,6 +599,7 @@ class DashApp:
                     up_ext,
                     down_ext,
                     exon_intron_bool,
+                    min_height_adjust,
                     current_figures,
                 )
             ]
@@ -586,6 +616,7 @@ class DashApp:
                     up_ext,
                     down_ext,
                     exon_intron_bool,
+                    min_height_adjust,
                     current_figures,
                 )
                 for gene in gene_list
@@ -599,6 +630,7 @@ class DashApp:
         command_list += ["-hc", str(rel_height)]
         command_list += ["-mg", str(min_gene_count)]
         command_list += ["-mb", str(min_peak_count)]
+        command_list += ["-mx", str(min_height_adjust)]
         if alt_feature_search:
             command_list += ["-alt", alt_feature_search]
         if len(exon_intron_bool) == 0:
@@ -617,6 +649,7 @@ class DashApp:
         up_ext,
         down_ext,
         exon_intron_bool,
+        min_height_adjust,
         current_figures,
     ):
         # Perform the peak calling if the gene is valid
@@ -748,6 +781,7 @@ class DashApp:
                 annot_exon,
                 annot_alt_features,
                 gene_with_flanks_df,
+                min_height_adjust,
             )
             if not isinstance(peaks, np.ndarray):
                 (
@@ -825,7 +859,7 @@ class DashApp:
             col=1,
         )
         # Add gene models
-        if gene_name:
+        if gene_name and not self.gene_xlink_dicts[gene_name].shape[0] == 0:
             flank_start = min(gene_with_flanks_df.start)
             flank_stop = max(gene_with_flanks_df.end)
 
@@ -906,33 +940,7 @@ class DashApp:
                 col=1,
             )
 
-            # Create a BEDTool of the nearby genes and their flanks
-            genes_and_flanks_bed = (
-                pybedtools.BedTool.from_dataframe(
-                    self.gene_overlap_dict[gene_name].iloc[:, :9]
-                )
-                .cat(gene_flanks_bed, postmerge=False)
-                .sort()
-            )
-            # Find the overlaps these features have
-            overlapping_features = clip.get_overlapping_feature_bed(
-                genes_and_flanks_bed, self.genome_file,
-            )
-            # Filter out the broad peaks which overlap these regions of gene
-            # overlap
-            filtered_broad_peaks = None
-            if overlapping_features is None:
-                filtered_broad_peaks = broad_peaks
-            else:
-                filtered_broad_peaks = pybedtools.BedTool.from_dataframe(
-                    pd.DataFrame(broad_peaks)
-                ).intersect(overlapping_features, v=True, s=True)
-                if filtered_broad_peaks.count() == 0:
-                    filtered_broad_peaks = []
-                else:
-                    filtered_broad_peaks = (
-                        filtered_broad_peaks.to_dataframe().to_numpy()
-                    )
+            filtered_broad_peaks = broad_peaks
 
             # add broad peaks as boxes
             fig.add_trace(
@@ -980,10 +988,15 @@ class DashApp:
         )
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=3, col=1)
         fig.update_layout(xaxis_showticklabels=True)
+        # Calculate the xlink number
+        xlink_number = 0
+        if (
+            gene_name in self.gene_xlink_dicts
+            and not self.gene_xlink_dicts[gene_name].shape[0] == 0
+        ):
+            xlink_number = self.gene_xlink_dicts[gene_name]["score"].sum()
         plot_title = (
-            gene_name
-            + " ; Total xlinks = "
-            + str(self.gene_xlink_dicts[gene_name]["score"].sum())
+            gene_name + " ; Total xlinks = {}".format(xlink_number)
             if gene_name is not None
             else gene_name
         )

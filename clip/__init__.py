@@ -1,16 +1,11 @@
 import numpy as np
-from numpy.matrixlib.defmatrix import _from_string
 import scipy.signal as sig
 from scipy.ndimage.filters import uniform_filter1d
-from scipy import stats
 import pybedtools
 import pybedtools.featurefuncs
 import pandas as pd
-import matplotlib
 import tempfile
 
-# matplotlib.use("TkAgg")
-import matplotlib.pyplot as plt
 import argparse
 import sys
 import clip.interaction
@@ -37,7 +32,6 @@ def main():
         rel_height,
         min_gene_count,
         outfile_name,
-        my_gene,
         min_peak_count,
         threads,
         chunksize_factor,
@@ -48,65 +42,34 @@ def main():
         down_ext,
         genome_file,
         intergenic_peak_threshold,
+        min_height_adjust,
     ) = parse_arguments(sys.argv[1:])
     counts_bed = pybedtools.BedTool(counts_bed)
     if interactive:
         app = clip.interaction.DashApp(counts_bed, annot, genome_file)
         app.run()
     else:
-        if my_gene is None:
-            peaks, broad_peaks = getAllPeaks(
-                counts_bed,
-                annot,
-                N,
-                X,
-                rel_height,
-                min_gene_count,
-                min_peak_count,
-                threads,
-                chunksize_factor,
-                outfile_name,
-                no_exon_info,
-                alt_features,
-                up_ext,
-                down_ext,
-                genome_file,
-                intergenic_peak_threshold,
-            )
-            outfile_name = outfile_name.replace(".bed", "_Peaks.bed")
-            getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
-        else:
-            outfile_name = (
-                my_gene
-                + "_rollmean"
-                + str(N)
-                + "_stdev"
-                + str(X)
-                + "_minGeneCount"
-                + str(min_gene_count)
-                + "_Summits.bed"
-            )
-            peaks, broad_peaks = getSingleGenePeaks(
-                counts_bed,
-                annot,
-                N,
-                X,
-                rel_height,
-                min_gene_count,
-                outfile_name,
-                my_gene,
-            )
-            outfile_name = (
-                my_gene
-                + "_rollmean"
-                + str(N)
-                + "_stdev"
-                + str(X)
-                + "_minGeneCount"
-                + str(min_gene_count)
-                + "_Peaks.bed"
-            )
-            getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
+        peaks, broad_peaks = getAllPeaks(
+            counts_bed,
+            annot,
+            N,
+            X,
+            rel_height,
+            min_gene_count,
+            min_peak_count,
+            threads,
+            chunksize_factor,
+            outfile_name,
+            no_exon_info,
+            alt_features,
+            up_ext,
+            down_ext,
+            genome_file,
+            intergenic_peak_threshold,
+            min_height_adjust,
+        )
+        outfile_name += "_Peaks.bed"
+        getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
 
 
 def parse_arguments(input_arguments):
@@ -135,17 +98,18 @@ def parse_arguments(input_arguments):
         type=str,
         required=True,
         help=(
-            "genome file containing chromosome lengths, used by BEDTools for "
-            "genomic operations"
+            "genome file containing chromosome lengths. Also known as a FASTA"
+            "index file, which usually ends in .fai. This file is used by"
+            "BEDTools for genomic operations"
         ),
     )
     optional.add_argument(
         "-n",
         "--windowsize",
         type=int,
-        default=15,
+        default=10,
         nargs="?",
-        help="rolling mean window size [DEFAULT 50]",
+        help="rolling mean window size [DEFAULT 10]",
     )
     optional.add_argument(
         "-up",
@@ -175,9 +139,9 @@ def parse_arguments(input_arguments):
         "-hc",
         "--height_cutoff",
         type=float,
-        default=0.8,
+        default=0.4,
         nargs="?",
-        help="proportion of prominence [DEFAULT 0.8]",
+        help="proportion of prominence [DEFAULT 0.4]",
     )
     optional.add_argument(
         "-mg",
@@ -194,13 +158,6 @@ def parse_arguments(input_arguments):
         default=5,
         nargs="?",
         help="min counts per broad peak [DEFAULT 5]",
-    )
-    optional.add_argument(
-        "-m",
-        "--mygene",
-        type=str,
-        nargs="?",
-        help="gene name, limits analysis to single gene",
     )
     optional.add_argument(
         "-t",
@@ -261,6 +218,14 @@ def parse_arguments(input_arguments):
             "<alt_feature_name>-<gtf_key>-<search_pattern>"
         ),
     )
+    optional.add_argument(
+        "-mx",
+        "--min_height_adjust",
+        type=float,
+        default=1,
+        nargs="?",
+        help="adjustment for the minimum height threshold, calculated as this value multiplied by the mean [DEFAULT 1]",
+    )
     parser._action_groups.append(optional)
     args = parser.parse_args(input_arguments)
     print(args)
@@ -273,7 +238,6 @@ def parse_arguments(input_arguments):
             str(args.adjust),
             "_minGeneCount",
             str(args.mingenecounts),
-            "_Summits.bed",
         ]
     )
     return (
@@ -284,7 +248,6 @@ def parse_arguments(input_arguments):
         args.height_cutoff,
         args.mingenecounts,
         outfile_name,
-        args.mygene,
         args.minpeakcounts,
         args.threads,
         args.chunksize_factor,
@@ -295,6 +258,7 @@ def parse_arguments(input_arguments):
         args.downstream_extension,
         args.genome_file,
         args.intergenic_peak_threshold,
+        args.min_height_adjust,
     )
 
 
@@ -308,6 +272,7 @@ def single_gene_get_peaks(
     annot_exon,
     alt_features,
     gene_flank_annot,
+    min_height_adjust,
 ):
     # Get the peaks for one gene
     # Now need to get an array of values
@@ -366,7 +331,6 @@ def single_gene_get_peaks(
     roll_mean_smoothed_scores = uniform_filter1d(scores.astype("float"), size=N)
 
     mean_dict = {}
-    std_dict = {}
     values_dict = {}
     for feature_idx, feature_name in enumerate(feature_names):
         feature_values = roll_mean_smoothed_scores[feature_mask[feature_idx]]
@@ -376,10 +340,8 @@ def single_gene_get_peaks(
         values_dict[feature_name] = feature_values
         if len(feature_values) > 0:
             mean_dict[feature_name] = np.mean(feature_values)
-            std_dict[feature_name] = np.std(feature_values)
         else:
             mean_dict[feature_name] = 0.0
-            std_dict[feature_name] = 0.0
 
     # In the case that the intron mean is greater than the exon mean, use the
     #  entire gene for the threshold
@@ -387,23 +349,22 @@ def single_gene_get_peaks(
         mean_dict["exon"] = np.mean(
             np.concatenate((values_dict["intron"], values_dict["exon"]))
         )
-        std_dict["exon"] = np.std(
-            np.concatenate((values_dict["intron"], values_dict["exon"]))
+
+    heights = (
+        np.amax(
+            (
+                feature_mask.transpose()
+                * [mean_dict[feature_name] for feature_name in feature_names]
+            ),
+            1,
         )
-
-    heights = np.amax(
-        (
-            feature_mask.transpose()
-            * [mean_dict[feature_name] for feature_name in feature_names]
-        ),
-        1,
+        * min_height_adjust
     )
-
     prominences = (
         np.amax(
             (
                 feature_mask.transpose()
-                * [std_dict[feature_name] for feature_name in feature_names]
+                * [mean_dict[feature_name] for feature_name in feature_names]
             ),
             1,
         )
@@ -659,6 +620,11 @@ def import_annot(annot_filepath, no_exon_info):
         ]
         annot_exons = {x: y for x, y in annot_exons.groupby("gene_id", as_index=False)}
 
+    if len(annot[annot.feature_type == "gene"]) == 0:
+        sys.exit(
+            'Annotation does not contain "gene" entries, which is required by Clippy'
+        )
+
     return (annot[annot.feature_type == "gene"].copy(True), annot_exons)
 
 
@@ -679,6 +645,7 @@ def getAllPeaks(
     down_ext,
     genome_file,
     intergenic_peak_threshold,
+    min_height_adjust,
 ):
     if threads > 1:
         pool = Pool(threads)
@@ -723,7 +690,7 @@ def getAllPeaks(
             .filter(lambda row: int(row.score) >= intergenic_peak_threshold)
             .each(pybedtools.featurefuncs.bed2gff)
             .each(add_intergenic_gff_attribute_field)
-            .saveas(outfile_name.replace(".bed", "_intergenic_regions.gtf"))
+            .saveas(outfile_name + "_intergenic_regions.gtf")
         )
         annot_bed_with_flanks = annot_bed_with_flanks.cat(
             intergenic_regions, postmerge=False
@@ -772,6 +739,7 @@ def getAllPeaks(
                     get_exon_annot(x, annot_exons),
                     annot_alt_features,
                     gene_flank_dict[x],
+                    min_height_adjust,
                 )
                 for x, y in goverlaps.groupby("gene_name", as_index=False)
             ),
@@ -790,6 +758,7 @@ def getAllPeaks(
                     get_exon_annot(x, annot_exons),
                     annot_alt_features,
                     gene_flank_dict[x],
+                    min_height_adjust,
                 )
             )
             for x, y in goverlaps.groupby("gene_name", as_index=False)
@@ -808,19 +777,9 @@ def getAllPeaks(
     broad_peaks_out_f.close()
 
     all_peaks_bed = pybedtools.BedTool(all_peaks_out_f.name).sort()
-    all_peaks_bed.saveas(outfile_name)
+    all_peaks_bed.saveas(outfile_name + "_Summits.bed")
 
-    overlapping_features = get_overlapping_feature_bed(
-        annot_bed_with_flanks, genome_file
-    )
-
-    filtered_broad_peaks = None
-    if overlapping_features is None:
-        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name)
-    else:
-        filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name).intersect(
-            overlapping_features, v=True, s=True
-        )
+    filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name)
 
     print("Finished, written summits file.")
     return (all_peaks_bed, filtered_broad_peaks)
@@ -844,127 +803,6 @@ def getBroadPeaks(
         )
         final_peaks.saveas(outfile_name)
         print("Finished, written peaks file.")
-
-
-def getSingleGenePeaks(
-    counts_bed,
-    annot,
-    N,
-    X,
-    rel_height,
-    min_gene_count,
-    outfile_name,
-    my_gene,
-    min_peak_count,
-):
-    pho92_iclip = counts_bed
-    annot = pd.read_table(
-        annot,
-        header=None,
-        names=[
-            "chrom",
-            "source",
-            "feature_type",
-            "start",
-            "end",
-            "score",
-            "strand",
-            "frame",
-            "attributes",
-        ],
-    )
-    annot_gene = annot[annot.feature_type == "gene"]
-    # Search for the gene we want
-    ang = annot_gene[annot_gene.attributes.str.contains(my_gene, case=False)]
-
-    if len(ang) == 0:
-        sys.exit("Couldn't find your gene in the provided annotation")
-    elif len(ang) > 1:
-        sys.exit(
-            "Found more than one gene containing that name "
-            "- could you be more specific?"
-        )
-
-    ang = pybedtools.BedTool.from_dataframe(ang)
-
-    goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(
-        names=[
-            "chrom",
-            "start",
-            "end",
-            "name",
-            "score",
-            "strand",
-            "chrom2",
-            "source",
-            "feature",
-            "gene_start",
-            "gene_stop",
-            "nothing",
-            "strand2",
-            "nothing2",
-            "gene_name",
-            "interval",
-        ]
-    )
-    goverlaps.drop(
-        [
-            "name",
-            "chrom2",
-            "nothing",
-            "nothing2",
-            "interval",
-            "strand2",
-            "source",
-            "feature",
-        ],
-        axis=1,
-        inplace=True,
-    )
-
-    peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = single_gene_get_peaks(
-        goverlaps, N, X, rel_height, min_gene_count, min_peak_count
-    )
-
-    if not isinstance(peaks, np.ndarray):
-        sys.exit("No peaks found in this gene with the current parameters")
-
-    outfile_name = (
-        my_gene
-        + "_rollmean"
-        + str(N)
-        + "_stdev"
-        + str(X)
-        + "_minGeneCount"
-        + str(min_gene_count)
-        + "_Summits.bed"
-    )
-    pd.DataFrame(peaks).to_csv(outfile_name, sep="\t", header=False, index=False)
-
-    # Make graph of gene
-    plt.plot(roll_mean_smoothed_scores, "-bD", markevery=peak_details[0].tolist())
-    plt.ylabel("roll mean smoothed cDNAs")
-    plt.axhline(y=np.mean(roll_mean_smoothed_scores), linewidth=4, color="r")
-    plt.axhline(
-        y=np.mean(roll_mean_smoothed_scores) + (np.std(roll_mean_smoothed_scores) * X),
-        linewidth=1,
-        color="g",
-    )
-    plt.savefig(
-        my_gene
-        + "_rollmean"
-        + str(N)
-        + "_stdev"
-        + str(X)
-        + "_minGeneCount"
-        + str(min_gene_count)
-        + ".png"
-    )
-    print("Finished, written peak file and gene graph.")
-    return (
-        pybedtools.BedTool.from_dataframe(pd.DataFrame(peaks)),
-        pybedtools.BedTool.from_dataframe(pd.DataFrame(broad_peaks)),
-    )
 
 
 if __name__ == "__main__":
