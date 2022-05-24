@@ -239,7 +239,9 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label("Minimum height adjustment"),
+                                            dash_html.Label(
+                                                "Minimum height adjustment"
+                                            ),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
