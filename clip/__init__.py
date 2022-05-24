@@ -619,6 +619,11 @@ def import_annot(annot_filepath, no_exon_info):
         ]
         annot_exons = {x: y for x, y in annot_exons.groupby("gene_id", as_index=False)}
 
+    if len(annot[annot.feature_type == "gene"]) == 0:
+        sys.exit(
+            'Annotation does not contain "gene" entries, which is required by Clippy'
+        )
+
     return (annot[annot.feature_type == "gene"].copy(True), annot_exons)
 
 
