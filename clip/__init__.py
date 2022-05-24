@@ -1,16 +1,11 @@
 import numpy as np
-from numpy.matrixlib.defmatrix import _from_string
 import scipy.signal as sig
 from scipy.ndimage.filters import uniform_filter1d
-from scipy import stats
 import pybedtools
 import pybedtools.featurefuncs
 import pandas as pd
-import matplotlib
 import tempfile
 
-# matplotlib.use("TkAgg")
-import matplotlib.pyplot as plt
 import argparse
 import sys
 import clip.interaction
@@ -37,7 +32,6 @@ def main():
         rel_height,
         min_gene_count,
         outfile_name,
-        my_gene,
         min_peak_count,
         threads,
         chunksize_factor,
@@ -55,60 +49,27 @@ def main():
         app = clip.interaction.DashApp(counts_bed, annot, genome_file)
         app.run()
     else:
-        if my_gene is None:
-            peaks, broad_peaks = getAllPeaks(
-                counts_bed,
-                annot,
-                N,
-                X,
-                rel_height,
-                min_gene_count,
-                min_peak_count,
-                threads,
-                chunksize_factor,
-                outfile_name,
-                no_exon_info,
-                alt_features,
-                up_ext,
-                down_ext,
-                genome_file,
-                intergenic_peak_threshold,
-                min_height_adjust,
-            )
-            outfile_name += "_Peaks.bed"
-            getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
-        else:
-            outfile_name = (
-                my_gene
-                + "_rollmean"
-                + str(N)
-                + "_stdev"
-                + str(X)
-                + "_minGeneCount"
-                + str(min_gene_count)
-                + "_Summits.bed"
-            )
-            peaks, broad_peaks = getSingleGenePeaks(
-                counts_bed,
-                annot,
-                N,
-                X,
-                rel_height,
-                min_gene_count,
-                outfile_name,
-                my_gene,
-            )
-            outfile_name = (
-                my_gene
-                + "_rollmean"
-                + str(N)
-                + "_stdev"
-                + str(X)
-                + "_minGeneCount"
-                + str(min_gene_count)
-                + "_Peaks.bed"
-            )
-            getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
+        peaks, broad_peaks = getAllPeaks(
+            counts_bed,
+            annot,
+            N,
+            X,
+            rel_height,
+            min_gene_count,
+            min_peak_count,
+            threads,
+            chunksize_factor,
+            outfile_name,
+            no_exon_info,
+            alt_features,
+            up_ext,
+            down_ext,
+            genome_file,
+            intergenic_peak_threshold,
+            min_height_adjust,
+        )
+        outfile_name += "_Peaks.bed"
+        getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
 
 
 def parse_arguments(input_arguments):
@@ -196,13 +157,6 @@ def parse_arguments(input_arguments):
         default=5,
         nargs="?",
         help="min counts per broad peak [DEFAULT 5]",
-    )
-    optional.add_argument(
-        "-m",
-        "--mygene",
-        type=str,
-        nargs="?",
-        help="gene name, limits analysis to single gene",
     )
     optional.add_argument(
         "-t",
@@ -293,7 +247,6 @@ def parse_arguments(input_arguments):
         args.height_cutoff,
         args.mingenecounts,
         outfile_name,
-        args.mygene,
         args.minpeakcounts,
         args.threads,
         args.chunksize_factor,
@@ -844,127 +797,6 @@ def getBroadPeaks(
         )
         final_peaks.saveas(outfile_name)
         print("Finished, written peaks file.")
-
-
-def getSingleGenePeaks(
-    counts_bed,
-    annot,
-    N,
-    X,
-    rel_height,
-    min_gene_count,
-    outfile_name,
-    my_gene,
-    min_peak_count,
-):
-    pho92_iclip = counts_bed
-    annot = pd.read_table(
-        annot,
-        header=None,
-        names=[
-            "chrom",
-            "source",
-            "feature_type",
-            "start",
-            "end",
-            "score",
-            "strand",
-            "frame",
-            "attributes",
-        ],
-    )
-    annot_gene = annot[annot.feature_type == "gene"]
-    # Search for the gene we want
-    ang = annot_gene[annot_gene.attributes.str.contains(my_gene, case=False)]
-
-    if len(ang) == 0:
-        sys.exit("Couldn't find your gene in the provided annotation")
-    elif len(ang) > 1:
-        sys.exit(
-            "Found more than one gene containing that name "
-            "- could you be more specific?"
-        )
-
-    ang = pybedtools.BedTool.from_dataframe(ang)
-
-    goverlaps = pho92_iclip.intersect(ang, s=True, wo=True).to_dataframe(
-        names=[
-            "chrom",
-            "start",
-            "end",
-            "name",
-            "score",
-            "strand",
-            "chrom2",
-            "source",
-            "feature",
-            "gene_start",
-            "gene_stop",
-            "nothing",
-            "strand2",
-            "nothing2",
-            "gene_name",
-            "interval",
-        ]
-    )
-    goverlaps.drop(
-        [
-            "name",
-            "chrom2",
-            "nothing",
-            "nothing2",
-            "interval",
-            "strand2",
-            "source",
-            "feature",
-        ],
-        axis=1,
-        inplace=True,
-    )
-
-    peaks, broad_peaks, roll_mean_smoothed_scores, peak_details = single_gene_get_peaks(
-        goverlaps, N, X, rel_height, min_gene_count, min_peak_count
-    )
-
-    if not isinstance(peaks, np.ndarray):
-        sys.exit("No peaks found in this gene with the current parameters")
-
-    outfile_name = (
-        my_gene
-        + "_rollmean"
-        + str(N)
-        + "_stdev"
-        + str(X)
-        + "_minGeneCount"
-        + str(min_gene_count)
-        + "_Summits.bed"
-    )
-    pd.DataFrame(peaks).to_csv(outfile_name, sep="\t", header=False, index=False)
-
-    # Make graph of gene
-    plt.plot(roll_mean_smoothed_scores, "-bD", markevery=peak_details[0].tolist())
-    plt.ylabel("roll mean smoothed cDNAs")
-    plt.axhline(y=np.mean(roll_mean_smoothed_scores), linewidth=4, color="r")
-    plt.axhline(
-        y=np.mean(roll_mean_smoothed_scores) + (np.std(roll_mean_smoothed_scores) * X),
-        linewidth=1,
-        color="g",
-    )
-    plt.savefig(
-        my_gene
-        + "_rollmean"
-        + str(N)
-        + "_stdev"
-        + str(X)
-        + "_minGeneCount"
-        + str(min_gene_count)
-        + ".png"
-    )
-    print("Finished, written peak file and gene graph.")
-    return (
-        pybedtools.BedTool.from_dataframe(pd.DataFrame(peaks)),
-        pybedtools.BedTool.from_dataframe(pd.DataFrame(broad_peaks)),
-    )
 
 
 if __name__ == "__main__":
