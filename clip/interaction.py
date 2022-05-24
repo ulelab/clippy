@@ -552,35 +552,40 @@ class DashApp:
                             "interval",
                         ]
                     )
-                    # Find the gene's exons
-                    gene_id = self.format_gene_list(
-                        self.gene_xlink_dicts[gene].attributes.tolist(), ["gene_id"],
-                    )[0]
-                    self.gene_exon_dicts[gene] = self.exon_annot.loc[
-                        self.exon_annot.attributes.str.contains('"{}"'.format(gene_id)),
-                        :,
-                    ].copy()
-                    self.gene_exon_dicts[gene].loc[
-                        :, "transcript_names"
-                    ] = self.format_gene_list(
-                        self.gene_exon_dicts[gene].attributes.tolist()
-                    )
-                    # Drop unnecessary columns from the crosslink table
-                    self.gene_xlink_dicts[gene].drop(
-                        [
-                            "name",
-                            "chrom2",
-                            "nothing",
-                            "nothing2",
-                            "interval",
-                            "strand2",
-                            "source",
-                            "feature",
-                            "attributes",
-                        ],
-                        axis=1,
-                        inplace=True,
-                    )
+                    # If there are any crosslinks in the gene
+                    if len(self.gene_xlink_dicts[gene]) > 0:
+                        # Find the gene's exons
+                        gene_id = self.format_gene_list(
+                            self.gene_xlink_dicts[gene].attributes.tolist(),
+                            ["gene_id"],
+                        )[0]
+                        self.gene_exon_dicts[gene] = self.exon_annot.loc[
+                            self.exon_annot.attributes.str.contains(
+                                '"{}"'.format(gene_id)
+                            ),
+                            :,
+                        ].copy()
+                        self.gene_exon_dicts[gene].loc[
+                            :, "transcript_names"
+                        ] = self.format_gene_list(
+                            self.gene_exon_dicts[gene].attributes.tolist()
+                        )
+                        # Drop unnecessary columns from the crosslink table
+                        self.gene_xlink_dicts[gene].drop(
+                            [
+                                "name",
+                                "chrom2",
+                                "nothing",
+                                "nothing2",
+                                "interval",
+                                "strand2",
+                                "source",
+                                "feature",
+                                "attributes",
+                            ],
+                            axis=1,
+                            inplace=True,
+                        )
         if len(gene_list) == 0:
             figs = [
                 self.peak_call_and_plot(
@@ -853,7 +858,7 @@ class DashApp:
             col=1,
         )
         # Add gene models
-        if gene_name:
+        if gene_name and not self.gene_xlink_dicts[gene_name].shape[0] == 0:
             flank_start = min(gene_with_flanks_df.start)
             flank_stop = max(gene_with_flanks_df.end)
 
@@ -982,10 +987,15 @@ class DashApp:
         )
         fig.update_yaxes(showgrid=False, zeroline=False, visible=False, row=3, col=1)
         fig.update_layout(xaxis_showticklabels=True)
+        # Calculate the xlink number
+        xlink_number = 0
+        if (
+            gene_name in self.gene_xlink_dicts
+            and not self.gene_xlink_dicts[gene_name].shape[0] == 0
+        ):
+            xlink_number = self.gene_xlink_dicts[gene_name]["score"].sum()
         plot_title = (
-            gene_name
-            + " ; Total xlinks = "
-            + str(self.gene_xlink_dicts[gene_name]["score"].sum())
+            gene_name + " ; Total xlinks = {}".format(xlink_number)
             if gene_name is not None
             else gene_name
         )
