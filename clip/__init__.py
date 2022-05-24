@@ -75,7 +75,7 @@ def main():
                 intergenic_peak_threshold,
                 min_height_adjust,
             )
-            outfile_name = outfile_name.replace(".bed", "_Peaks.bed")
+            outfile_name += "_Peaks.bed"
             getBroadPeaks(counts_bed, broad_peaks, min_peak_count, outfile_name)
         else:
             outfile_name = (
@@ -283,7 +283,6 @@ def parse_arguments(input_arguments):
             str(args.adjust),
             "_minGeneCount",
             str(args.mingenecounts),
-            "_Summits.bed",
         ]
     )
     return (
@@ -732,7 +731,7 @@ def getAllPeaks(
             .filter(lambda row: int(row.score) >= intergenic_peak_threshold)
             .each(pybedtools.featurefuncs.bed2gff)
             .each(add_intergenic_gff_attribute_field)
-            .saveas(outfile_name.replace(".bed", "_intergenic_regions.gtf"))
+            .saveas(outfile_name + "_intergenic_regions.gtf")
         )
         annot_bed_with_flanks = annot_bed_with_flanks.cat(
             intergenic_regions, postmerge=False
@@ -819,7 +818,7 @@ def getAllPeaks(
     broad_peaks_out_f.close()
 
     all_peaks_bed = pybedtools.BedTool(all_peaks_out_f.name).sort()
-    all_peaks_bed.saveas(outfile_name)
+    all_peaks_bed.saveas(outfile_name + "_Summits.bed")
 
     filtered_broad_peaks = pybedtools.BedTool(broad_peaks_out_f.name)
 
