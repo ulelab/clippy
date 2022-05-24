@@ -630,6 +630,7 @@ class DashApp:
         command_list += ["-hc", str(rel_height)]
         command_list += ["-mg", str(min_gene_count)]
         command_list += ["-mb", str(min_peak_count)]
+        command_list += ["-mx", str(min_height_adjust)]
         if alt_feature_search:
             command_list += ["-alt", alt_feature_search]
         if len(exon_intron_bool) == 0:
