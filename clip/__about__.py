@@ -4,7 +4,7 @@ __title__ = "clippy"
 __summary__ = "An intuitive and interactive peak caller for CLIP data"
 __url__ = "https://github.com/ulelab/clippy"
 
-__version__ = "1.3.1"
+__version__ = "1.4.1"
 
 __author__ = "Charlotte Capitanchik, Marc Jones"
 __email__ = "charlotte.capitanchik@crick.ac.uk, marc.jones@crick.ac.uk"
