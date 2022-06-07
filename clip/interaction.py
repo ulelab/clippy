@@ -1068,7 +1068,7 @@ class DashApp:
         if current_figures:
             for graph in current_figures:
                 title = graph["props"]["figure"]["layout"]["title"]
-                if "text" in title and title["text"] == gene_name:
+                if "text" in title and title["text"] == plot_title:
                     if "relayoutData" in graph["props"]:
                         current_relayout_data = graph["props"]["relayoutData"]
         # Keep the same zoom level for the graph, if the user has changed that
