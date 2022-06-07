@@ -1028,17 +1028,49 @@ class DashApp:
             fig.add_trace(
                 plotlygo.Scatter(
                     x=list(range(len(roll_mean_smoothed_scores))),
-                    y=heights
-                    + prominences,  # [prominence_threshold_val] * len(roll_mean_smoothed_scores),
+                    y=np.clip(roll_mean_smoothed_scores-prominences, 0, None),
                     mode="lines",
                     name="Prominence threshold",
-                    line=dict(color="forestgreen", width=2),
+                    line=dict(color="forestgreen", width=2, dash="dot"),
                 ),
                 row=1,
                 col=1,
             )
         # Add in peaks, if they have been called
         if len(peak_details[0]) > 0:
+            fig.add_trace(
+                plotlygo.Scatter(
+                    x=np.array(
+                        [
+                            [
+                                peak_details[0][idx],
+                                peak_details[0][idx],
+                                None,
+                            ]
+                            for idx in range(len(peak_details[0]))
+                        ]
+                    ).flatten(),
+                    y=np.array(
+                        [
+                            [
+                                peak_details[1]["peak_heights"][idx],
+                                (
+                                    peak_details[1]["peak_heights"][idx] -
+                                    peak_details[1]["prominences"][idx]
+                                ),
+                                None,
+                            ]
+                            for idx in range(len(peak_details[0]))
+                        ]
+                    ).flatten(),
+                    mode="lines",
+                    name="Peak prominences",
+                    line=dict(color="green", width=2),
+                ),
+                row=1,
+                col=1,
+            )
+
             fig.add_trace(
                 plotlygo.Scatter(
                     x=peak_details[0],
