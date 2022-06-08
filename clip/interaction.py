@@ -13,12 +13,13 @@ import clip
 import re
 
 top_x_search_results = 20
+max_command_line_len = 90
+adjustments_max = 6
 name_delimiter = "; "
 gtf_delimiter = ";"
 gtf_attribute_filters = ["_name", "_id"]
 # Exposed here to allow for optimisation with regards to the xlinks saved
 max_window_size = 1000
-max_command_line_len = 90
 
 class DashApp:
     def __init__(self, counts_bed, annot, genome_file):
@@ -188,7 +189,7 @@ class DashApp:
                                             ),
                                             # Peak size parameters
                                             dash_html.Hr(),
-                                            dash_html.H5("Peak size parameters"),
+                                            dash_html.H5("Peak size"),
                                             dash_html.Label("Rolling mean window size"),
                                             dash_html.Div(
                                                 [
@@ -239,18 +240,18 @@ class DashApp:
                                                 },
                                             ),
                                             dash_html.Hr(),
-                                            dash_html.H5("Peak filtering parameters"),
-                                            dash_html.Label("Minimum prominence adjustment"),
+                                            dash_html.H5("Peak filtering"),
+                                            dash_html.Label("Min. prominence adjustment"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
                                                         id="x-slider",
                                                         min=0,
-                                                        max=5,
+                                                        max=adjustments_max,
                                                         step=0.1,
                                                         value=clip.defaults.min_prom_adjust,
                                                         marks={
-                                                            i: str(i) for i in range(6)
+                                                            i: str(i) for i in range(adjustments_max + 1)
                                                         },
                                                         tooltip={
                                                             "always_visible": True,
@@ -264,18 +265,18 @@ class DashApp:
                                                 },
                                             ),
                                             dash_html.Label(
-                                                "Minimum height adjustment"
+                                                "Min. height adjustment"
                                             ),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
                                                         id="min-height-adjust-slider",
                                                         min=0,
-                                                        max=5,
+                                                        max=adjustments_max,
                                                         step=0.1,
                                                         value=clip.defaults.min_height_adjust,
                                                         marks={
-                                                            i: str(i) for i in range(6)
+                                                            i: str(i) for i in range(adjustments_max + 1)
                                                         },
                                                         tooltip={
                                                             "always_visible": True,
@@ -289,7 +290,7 @@ class DashApp:
                                                 },
                                             ),
                                             dash_html.Label(
-                                                "Minimum counts per gene to look for peaks"
+                                                "Min. counts per gene"
                                             ),
                                             dash_html.Div(
                                                 [
@@ -311,7 +312,7 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label("Minimum counts per peak"),
+                                            dash_html.Label("Min. counts per peak"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
@@ -334,7 +335,7 @@ class DashApp:
                                             ),
                                             # Annotation parameters
                                             dash_html.Hr(),
-                                            dash_html.H5("Annotation parameters"),
+                                            dash_html.H5("Annotation"),
                                             dash_html.Label("Alternative features"),
                                             dash_html.Div(
                                                 [
@@ -394,7 +395,7 @@ class DashApp:
                                                         id="exon-intron-bool",
                                                         options=[
                                                             {
-                                                                "label": "Separate exon thresholds",
+                                                                "label": " Separate exon thresholds",
                                                                 "value": 1,
                                                             }
                                                         ],
@@ -1046,7 +1047,7 @@ class DashApp:
                     x=list(range(len(roll_mean_smoothed_scores))),
                     y=heights,
                     mode="lines",
-                    name="Mean",
+                    name="Height threshold",
                     line=dict(color="crimson", width=2),
                 ),
                 row=1,
