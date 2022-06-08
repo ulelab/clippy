@@ -1031,11 +1031,7 @@ class DashApp:
                 plotlygo.Scatter(
                     x=np.array(
                         [
-                            [
-                                peak_details[0][idx],
-                                peak_details[0][idx],
-                                None,
-                            ]
+                            [peak_details[0][idx], peak_details[0][idx], None,]
                             for idx in range(len(peak_details[0]))
                         ]
                     ).flatten(),
@@ -1044,8 +1040,8 @@ class DashApp:
                             [
                                 peak_details[1]["peak_heights"][idx],
                                 (
-                                    peak_details[1]["peak_heights"][idx] -
-                                    peak_details[1]["prominences"][idx]
+                                    peak_details[1]["peak_heights"][idx]
+                                    - peak_details[1]["prominences"][idx]
                                 ),
                                 None,
                             ]
@@ -1064,11 +1060,7 @@ class DashApp:
                 plotlygo.Scatter(
                     x=np.array(
                         [
-                            [
-                                peak_details[0][idx],
-                                peak_details[0][idx],
-                                None,
-                            ]
+                            [peak_details[0][idx], peak_details[0][idx], None,]
                             for idx in range(len(peak_details[0]))
                         ]
                     ).flatten(),
@@ -1076,13 +1068,13 @@ class DashApp:
                         [
                             [
                                 (
-                                    peak_details[1]["peak_heights"][idx] -
-                                    peak_details[1]["prominences"][idx]
+                                    peak_details[1]["peak_heights"][idx]
+                                    - peak_details[1]["prominences"][idx]
                                 ),
                                 (
-                                    peak_details[1]["peak_heights"][idx] -
-                                    peak_details[1]["prominences"][idx] +
-                                    prominences[peak_details[0][idx]]
+                                    peak_details[1]["peak_heights"][idx]
+                                    - peak_details[1]["prominences"][idx]
+                                    + prominences[peak_details[0][idx]]
                                 ),
                                 None,
                             ]
@@ -1096,7 +1088,6 @@ class DashApp:
                 row=1,
                 col=1,
             )
-
 
             fig.add_trace(
                 plotlygo.Scatter(
