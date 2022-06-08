@@ -21,6 +21,7 @@ gtf_attribute_filters = ["_name", "_id"]
 # Exposed here to allow for optimisation with regards to the xlinks saved
 max_window_size = 1000
 
+
 class DashApp:
     def __init__(self, counts_bed, annot, genome_file):
         self.genome_file = genome_file
@@ -187,7 +188,7 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            # Peak size parameters
+                                            #  Peak size parameters
                                             dash_html.Hr(),
                                             dash_html.H5("Peak size"),
                                             dash_html.Label("Rolling mean window size"),
@@ -241,7 +242,9 @@ class DashApp:
                                             ),
                                             dash_html.Hr(),
                                             dash_html.H5("Peak filtering"),
-                                            dash_html.Label("Min. prominence adjustment"),
+                                            dash_html.Label(
+                                                "Min. prominence adjustment"
+                                            ),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
@@ -251,7 +254,10 @@ class DashApp:
                                                         step=0.1,
                                                         value=clip.defaults.min_prom_adjust,
                                                         marks={
-                                                            i: str(i) for i in range(adjustments_max + 1)
+                                                            i: str(i)
+                                                            for i in range(
+                                                                adjustments_max + 1
+                                                            )
                                                         },
                                                         tooltip={
                                                             "always_visible": True,
@@ -264,9 +270,7 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label(
-                                                "Min. height adjustment"
-                                            ),
+                                            dash_html.Label("Min. height adjustment"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
@@ -276,7 +280,10 @@ class DashApp:
                                                         step=0.1,
                                                         value=clip.defaults.min_height_adjust,
                                                         marks={
-                                                            i: str(i) for i in range(adjustments_max + 1)
+                                                            i: str(i)
+                                                            for i in range(
+                                                                adjustments_max + 1
+                                                            )
                                                         },
                                                         tooltip={
                                                             "always_visible": True,
@@ -289,9 +296,7 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label(
-                                                "Min. counts per gene"
-                                            ),
+                                            dash_html.Label("Min. counts per gene"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
@@ -333,7 +338,7 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            # Annotation parameters
+                                            #  Annotation parameters
                                             dash_html.Hr(),
                                             dash_html.H5("Annotation"),
                                             dash_html.Label("Alternative features"),
@@ -657,14 +662,14 @@ class DashApp:
         output_list = [command_list.pop(0)]
         current_line_len = len(output_list[0])
         for idx in range(0, len(command_list), 2):
-            next_element = " " + " ".join(command_list[idx:(idx+2)])
+            next_element = " " + " ".join(command_list[idx : (idx + 2)])
             if current_line_len + len(next_element) > max_command_line_len:
                 output_list.append(" \\")
                 output_list.append(dash_html.Br())
                 current_line_len = 0
             output_list.append(next_element)
             current_line_len += len(next_element)
-        return(output_list)
+        return output_list
 
     def peak_call_and_plot(
         self,
