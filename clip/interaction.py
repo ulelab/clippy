@@ -18,7 +18,7 @@ gtf_delimiter = ";"
 gtf_attribute_filters = ["_name", "_id"]
 # Exposed here to allow for optimisation with regards to the xlinks saved
 max_window_size = 1000
-
+max_command_line_len = 90
 
 class DashApp:
     def __init__(self, counts_bed, annot, genome_file):
@@ -30,15 +30,15 @@ class DashApp:
         self.gene_overlap_dict = {}
         self.app = dash.Dash(__name__, external_stylesheets=[dash_bs.themes.BOOTSTRAP])
         self.base_command_list = [
-            "./clip.py",
-            "-i",
+            "clippy",
+            "--input_bed",
             counts_bed.__dict__["fn"],
-            "-a",
-            annot,
-            "-g",
-            genome_file,
-            "-o",
+            "--output_prefix",
             "OUTPUT_PREFIX",
+            "--annotation",
+            annot,
+            "--genome_file",
+            genome_file,
         ]
 
     def read_annot(self, annot):
@@ -161,6 +161,7 @@ class DashApp:
                                                     ),
                                                 ]
                                             ),
+                                            dash_html.Hr(),
                                             dash_html.Label("Gene search"),
                                             dash_html.Div(
                                                 [
@@ -185,6 +186,9 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            # Peak size parameters
+                                            dash_html.Hr(),
+                                            dash_html.H5("Peak size parameters"),
                                             dash_html.Label("Rolling mean window size"),
                                             dash_html.Div(
                                                 [
@@ -203,7 +207,7 @@ class DashApp:
                                                             ]
                                                         ],
                                                         id="n-select",
-                                                        value=15,
+                                                        value=clip.defaults.window_size,
                                                         multi=False,
                                                         optionHeight=20,
                                                     )
@@ -213,20 +217,40 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label("Prominence adjustment"),
+                                            dash_html.Label("Peak width"),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="width",
+                                                        min=0,
+                                                        max=1,
+                                                        step=0.05,
+                                                        value=clip.defaults.width,
+                                                        marks={0: "0", 1: "1",},
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
+                                            dash_html.Hr(),
+                                            dash_html.H5("Peak filtering parameters"),
+                                            dash_html.Label("Minimum prominence adjustment"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
                                                         id="x-slider",
                                                         min=0,
-                                                        max=3,
+                                                        max=5,
                                                         step=0.1,
-                                                        value=1,
+                                                        value=clip.defaults.min_prom_adjust,
                                                         marks={
-                                                            0: "0",
-                                                            1: "1",
-                                                            2: "2",
-                                                            3: "3",
+                                                            i: str(i) for i in range(6)
                                                         },
                                                         tooltip={
                                                             "always_visible": True,
@@ -247,32 +271,12 @@ class DashApp:
                                                     dash_cc.Slider(
                                                         id="min-height-adjust-slider",
                                                         min=0,
-                                                        max=10,
+                                                        max=5,
                                                         step=0.1,
-                                                        value=1,
-                                                        tooltip={
-                                                            "always_visible": True,
-                                                            "placement": "bottom",
+                                                        value=clip.defaults.min_height_adjust,
+                                                        marks={
+                                                            i: str(i) for i in range(6)
                                                         },
-                                                    )
-                                                ],
-                                                style={
-                                                    "marginBottom": "1.5em",
-                                                    "marginTop": "0.5em",
-                                                },
-                                            ),
-                                            dash_html.Label(
-                                                "Relative height (peak threshold)"
-                                            ),
-                                            dash_html.Div(
-                                                [
-                                                    dash_cc.Slider(
-                                                        id="rel_height",
-                                                        min=0,
-                                                        max=1,
-                                                        step=0.05,
-                                                        value=0.8,
-                                                        marks={0: "0", 1: "1",},
                                                         tooltip={
                                                             "always_visible": True,
                                                             "placement": "bottom",
@@ -294,7 +298,7 @@ class DashApp:
                                                         min=1,
                                                         max=200,
                                                         step=1,
-                                                        value=5,
+                                                        value=clip.defaults.min_gene_counts,
                                                         marks={1: "1", 200: "200",},
                                                         tooltip={
                                                             "always_visible": True,
@@ -315,7 +319,7 @@ class DashApp:
                                                         min=1,
                                                         max=200,
                                                         step=1,
-                                                        value=5,
+                                                        value=clip.defaults.min_peak_counts,
                                                         marks={1: "1", 200: "200",},
                                                         tooltip={
                                                             "always_visible": True,
@@ -328,6 +332,9 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            # Annotation parameters
+                                            dash_html.Hr(),
+                                            dash_html.H5("Annotation parameters"),
                                             dash_html.Label("Alternative features"),
                                             dash_html.Div(
                                                 [
@@ -349,7 +356,7 @@ class DashApp:
                                                         min=0,
                                                         max=max_window_size,
                                                         step=50,
-                                                        value=0,
+                                                        value=clip.defaults.upstream_extension,
                                                         tooltip={
                                                             "always_visible": True,
                                                             "placement": "bottom",
@@ -369,7 +376,7 @@ class DashApp:
                                                         min=0,
                                                         max=max_window_size,
                                                         step=50,
-                                                        value=0,
+                                                        value=clip.defaults.downstream_extension,
                                                         tooltip={
                                                             "always_visible": True,
                                                             "placement": "bottom",
@@ -420,7 +427,7 @@ class DashApp:
             Input("gene-select", "value"),
             Input("n-select", "value"),
             Input("x-slider", "value"),
-            Input("rel_height", "value"),
+            Input("width", "value"),
             Input("min-count-slider", "value"),
             Input("min-peak-count-slider", "value"),
             Input("alt-features-input", "value"),
@@ -502,7 +509,7 @@ class DashApp:
         gene_list,
         N,
         X,
-        rel_height,
+        width,
         min_gene_count,
         min_peak_count,
         alt_feature_search,
@@ -592,7 +599,7 @@ class DashApp:
                     None,
                     N,
                     X,
-                    rel_height,
+                    width,
                     min_gene_count,
                     min_peak_count,
                     alt_feature_search,
@@ -609,7 +616,7 @@ class DashApp:
                     gene,
                     N,
                     X,
-                    rel_height,
+                    width,
                     min_gene_count,
                     min_peak_count,
                     alt_feature_search,
@@ -623,26 +630,47 @@ class DashApp:
             ]
         # Setup the command list
         command_list = self.base_command_list[:]
-        command_list += ["-n", str(N)]
-        command_list += ["-up", str(up_ext)]
-        command_list += ["-down", str(down_ext)]
-        command_list += ["-x", str(X)]
-        command_list += ["-hc", str(rel_height)]
-        command_list += ["-mg", str(min_gene_count)]
-        command_list += ["-mb", str(min_peak_count)]
-        command_list += ["-mx", str(min_height_adjust)]
+        if not N == clip.defaults.window_size:
+            command_list += ["--window_size", str(N)]
+        if not width == clip.defaults.width:
+            command_list += ["--width", str(width)]
+        if not X == clip.defaults.min_prom_adjust:
+            command_list += ["--min_prom_adjust", str(X)]
+        if not min_height_adjust == clip.defaults.min_height_adjust:
+            command_list += ["--min_height_adjust", str(min_height_adjust)]
+        if not min_gene_count == clip.defaults.min_gene_counts:
+            command_list += ["--min_gene_counts", str(min_gene_count)]
+        if not min_peak_count == clip.defaults.min_peak_counts:
+            command_list += ["--min_peak_counts", str(min_peak_count)]
         if alt_feature_search:
-            command_list += ["-alt", alt_feature_search]
+            command_list += ["--alt_features", alt_feature_search]
+        if not up_ext == clip.defaults.upstream_extension:
+            command_list += ["--upstream_extension", str(up_ext)]
+        if not down_ext == clip.defaults.downstream_extension:
+            command_list += ["--downstream_extension", str(down_ext)]
         if len(exon_intron_bool) == 0:
             command_list.append("--no_exon_info")
-        return (figs, " ".join(command_list), "Idle")
+        return (figs, self.format_command_list(command_list), "Idle")
+
+    def format_command_list(self, command_list):
+        output_list = [command_list.pop(0)]
+        current_line_len = len(output_list[0])
+        for idx in range(0, len(command_list), 2):
+            next_element = " " + " ".join(command_list[idx:(idx+2)])
+            if current_line_len + len(next_element) > max_command_line_len:
+                output_list.append(" \\")
+                output_list.append(dash_html.Br())
+                current_line_len = 0
+            output_list.append(next_element)
+            current_line_len += len(next_element)
+        return(output_list)
 
     def peak_call_and_plot(
         self,
         gene_name,
         N,
         X,
-        rel_height,
+        width,
         min_gene_count,
         min_peak_count,
         alt_feature_search,
@@ -775,7 +803,7 @@ class DashApp:
                 xlinks,
                 N,
                 X,
-                rel_height,
+                width,
                 min_gene_count,
                 min_peak_count,
                 annot_exon,
