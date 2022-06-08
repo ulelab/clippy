@@ -792,14 +792,13 @@ class DashApp:
                     heights,
                     prominences,
                 ) = ([[]] * 3 + [[[]]] + [[]] * 2)
-        # Plot the rolling mean and thresholds
         fig = make_subplots(
             rows=3,
             row_heights=[0.90, 0.05, 0.05],
             shared_xaxes=True,
             vertical_spacing=0.12,
         )
-        # below is code for adding relative height (broad peak) trace
+        # Add peak trace
         fig.add_trace(
             plotlygo.Scatter(
                 x=np.array(
@@ -831,7 +830,7 @@ class DashApp:
             row=1,
             col=1,
         )
-        # below is code for adding smoothed signal trace
+        # Add smoothed signal trace
         fig.add_trace(
             plotlygo.Scatter(
                 x=list(range(len(roll_mean_smoothed_scores))),
@@ -911,7 +910,6 @@ class DashApp:
             )
 
             # add arrow corresponding to gene strand
-            # get strand - how?????
             direction = self.gene_xlink_dicts[gene_name]["strand"][0]
             if direction == "+":
                 marksymb = "triangle-right"
@@ -1012,6 +1010,7 @@ class DashApp:
             },
             legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": -0.5},
         )
+        # Add minimum height threshold
         if len(roll_mean_smoothed_scores) > 0:
             mean_val = np.mean(roll_mean_smoothed_scores)
             fig.add_trace(
@@ -1027,6 +1026,7 @@ class DashApp:
             )
         # Add in peaks, if they have been called
         if len(peak_details[0]) > 0:
+            # Plot prominence lines for each peak
             fig.add_trace(
                 plotlygo.Scatter(
                     x=np.array(
@@ -1055,7 +1055,7 @@ class DashApp:
                 row=1,
                 col=1,
             )
-
+            # Plot the prominence threshold on top of each peak prominence
             fig.add_trace(
                 plotlygo.Scatter(
                     x=np.array(
@@ -1088,7 +1088,7 @@ class DashApp:
                 row=1,
                 col=1,
             )
-
+            # Plot summit markers
             fig.add_trace(
                 plotlygo.Scatter(
                     x=peak_details[0],
@@ -1102,18 +1102,8 @@ class DashApp:
                 row=1,
                 col=1,
             )
-            # fig.update_traces(
-            #    marker={
-            #        "size": 12,
-            #        "color": "mediumvioletred",
-            #        "line": {
-            #            "width": 2,
-            #            "color": "darkslateblue"
-            #        }
-            #    },
-            #    selector={"mode": "markers"}
-            # )
 
+        # Keep the same zoom levels for the graph, if the user has changed that
         current_relayout_data = None
         if current_figures:
             for graph in current_figures:
@@ -1121,18 +1111,17 @@ class DashApp:
                 if "text" in title and title["text"] == plot_title:
                     if "relayoutData" in graph["props"]:
                         current_relayout_data = graph["props"]["relayoutData"]
-        # Keep the same zoom level for the graph, if the user has changed that
         if current_relayout_data and "xaxis.range[0]" in current_relayout_data:
             fig["layout"]["xaxis"]["range"] = [
                 current_relayout_data["xaxis.range[0]"],
                 current_relayout_data["xaxis.range[1]"],
             ]
-        # I think fixing y axis provides more intuitive "genome browser" experience - CC
         if current_relayout_data and "yaxis.range[0]" in current_relayout_data:
             fig["layout"]["yaxis"]["range"] = [
                 current_relayout_data["yaxis.range[0]"],
                 current_relayout_data["yaxis.range[1]"],
             ]
+
         return dash_cc.Graph(
             id="gene-graph-" + str(gene_name),
             figure=fig,
