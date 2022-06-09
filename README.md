@@ -30,7 +30,8 @@ conda install -c bioconda -c conda-forge clippy
 To start the interactive parameter search server for the test yeast data, run:
 
 ```
-clippy -i tests/data/crosslinkcounts.bed -o TEST -a tests/data/annot.gff -g tests/data/genome.fa.fai -int
+clippy --input_bed tests/data/crosslinkcounts.bed --output_prefix OUTPUT_PREFIX \
+       --annotation tests/data/annot.gff --genome_file tests/data/genome.fa.fai
 ```
 
 ## Usage
@@ -53,8 +54,8 @@ required arguments:
                         gtf annotation file
   -g GENOME_FILE, --genome_file GENOME_FILE
                         genome file containing chromosome lengths. Also known as a FASTA index
-                        file, which usually ends in .fai. This file is used by BEDTools for genomic
-                        operations
+                        file, which usually ends in .fai. This file is used by BEDTools for
+                        genomic operations
 
 optional peak size arguments:
   Control the size of the peaks called
@@ -94,10 +95,10 @@ optional annotation arguments:
                         Intergenic peaks are called by first creating intergenic regions and
                         calling peaks on the regions as though they were genes. The regions are
                         made by expanding intergenic crosslinks and merging the result. This
-                        parameter is the threshold number of summed cDNA counts required to include
-                        a region. If set to zero, the default, no intergenic peaks will be called.
-                        When using this mode, the intergenic regions used will be output as a GTF
-                        file. [DEFAULT 0]
+                        parameter is the threshold number of summed cDNA counts required to
+                        include a region. If set to zero, the default, no intergenic peaks will
+                        be called. When using this mode, the intergenic regions used will be
+                        output as a GTF file. [DEFAULT 0]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -105,9 +106,9 @@ optional arguments:
   -t [THREADS], --threads [THREADS]
                         number of threads to use. [DEFAULT 1]
   -cf [CHUNKSIZE_FACTOR], --chunksize_factor [CHUNKSIZE_FACTOR]
-                        A factor used to control the number of jobs given to a thread at a time. A
-                        larger number reduces the number of jobs per chunk. Only increase if you
-                        experience crashes [DEFAULT 16]
+                        A factor used to control the number of jobs given to a thread at a time.
+                        A larger number reduces the number of jobs per chunk. Only increase if
+                        you experience crashes [DEFAULT 16]
   -int, --interactive   starts a Dash server to allow for interactive parameter tuning
 ```
 
@@ -137,17 +138,24 @@ Test data for the automated testing was generated as follows.
 For CEP295 data:
 
 ```
-cat tests/data/gencode.v38.annotation.gtf | awk '{if($1=="chr11" && 93661682<=$4 && $5<=93730358){print($0)}}' > tests/data/gencode.v38.cep295.gtf
+cat tests/data/gencode.v38.annotation.gtf | \
+    awk '{if($1=="chr11" && 93661682<=$4 && $5<=93730358){print($0)}}' > \
+    tests/data/gencode.v38.cep295.gtf
 
-gunzip -c tests/data/tardbp-egfp-hek293-2-20201021-ju_mapped_to_genome_reads_single.bed.gz | awk '{if($1=="chr11" && 93661682<=$2 && $3<=93730358){print($0)}}' > tests/data/cep295.bed
+gunzip -c tests/data/tardbp-egfp-hek293-2-20201021-ju_mapped_to_genome_reads_single.bed.gz | \
+    awk '{if($1=="chr11" && 93661682<=$2 && $3<=93730358){print($0)}}' > tests/data/cep295.bed
 ```
 
 For RBFOX2 data:
 
 ```
-cat tests/data/gencode.v38.annotation.gtf | awk '{if($1=="chr19" && 10000000<=$4 && $5<=11000000){print($0)}}' > tests/data/gencode.v38.chr19_10M_11M.gtf
+cat tests/data/gencode.v38.annotation.gtf | \
+    awk '{if($1=="chr19" && 10000000<=$4 && $5<=11000000){print($0)}}' > \
+    tests/data/gencode.v38.chr19_10M_11M.gtf
 
-gunzip -c tests/data/HepG2_RBFOX2.xl.bed.gz | awk '{if($1=="chr19" && 10000000<=$2 && $3<=11000000){print($0)}}' > tests/data/rbfox2_chr19_10M_11M.bed
+gunzip -c tests/data/HepG2_RBFOX2.xl.bed.gz | \
+    awk '{if($1=="chr19" && 10000000<=$2 && $3<=11000000){print($0)}}' > \
+    tests/data/rbfox2_chr19_10M_11M.bed
 ```
 
 ## Authors
