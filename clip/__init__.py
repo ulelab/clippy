@@ -87,7 +87,7 @@ def parse_arguments(input_arguments):
         "--input_bed",
         type=str,
         required=True,
-        help="bed file containing crosslink counts at each position",
+        help="bed file containing cDNA counts at each crosslink position",
     )
     required.add_argument(
         "-o",
@@ -105,8 +105,8 @@ def parse_arguments(input_arguments):
         type=str,
         required=True,
         help=(
-            "genome file containing chromosome lengths. Also known as a FASTA"
-            "index file, which usually ends in .fai. This file is used by"
+            "genome file containing chromosome lengths. Also known as a FASTA "
+            "index file, which usually ends in .fai. This file is used by "
             "BEDTools for genomic operations"
         ),
     )
@@ -168,7 +168,7 @@ def parse_arguments(input_arguments):
         type=type(clip.defaults.min_gene_counts),
         default=clip.defaults.min_gene_counts,
         nargs="?",
-        help=("min counts per gene to look for peaks [DEFAULT {}]").format(
+        help=("minimum cDNA counts per gene to look for peaks [DEFAULT {}]").format(
             clip.defaults.min_gene_counts
         ),
     )
@@ -178,7 +178,7 @@ def parse_arguments(input_arguments):
         type=type(clip.defaults.min_peak_counts),
         default=clip.defaults.min_peak_counts,
         nargs="?",
-        help=("min counts per broad peak [DEFAULT {}]").format(
+        help=("minimum cDNA counts per broad peak [DEFAULT {}]").format(
             clip.defaults.min_peak_counts
         ),
     )
@@ -193,7 +193,7 @@ def parse_arguments(input_arguments):
         type=str,
         nargs="?",
         help=(
-            "A list of alternative GTF features to set individual height "
+            "A list of alternative GTF features to set individual "
             "thresholds on in the comma-separated format "
             "<alt_feature_name>-<gtf_key>-<search_pattern>"
         ),
@@ -235,9 +235,10 @@ def parse_arguments(input_arguments):
             "and calling peaks on the regions as though they were genes. "
             "The regions are made by expanding intergenic crosslinks and "
             "merging the result. This parameter is the threshold number of "
-            "crosslinks required to include a region. If set to zero (default), "
-            "no intergenic peaks will be called. When using this mode, the "
-            "intergenic regions used will be output as a GTF file. [DEFAULT {}]"
+            "summed cDNA counts required to include a region. If set to zero, "
+            "the default, no intergenic peaks will be called. When using this "
+            "mode, the intergenic regions used will be output as a GTF file. "
+            "[DEFAULT {}]"
         ).format(clip.defaults.intergenic_peak_threshold),
     )
     # Optional parameters
