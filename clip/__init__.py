@@ -22,6 +22,8 @@ from clip.__about__ import (
     __email__,
 )
 
+import clip.defaults
+
 
 def main():
     (
@@ -78,19 +80,24 @@ def parse_arguments(input_arguments):
         "-v", "--version", action="version", version=__version__,
     )
     optional = parser._action_groups.pop()
+    # Required parameters
     required = parser.add_argument_group("required arguments")
     required.add_argument(
         "-i",
-        "--inputbed",
+        "--input_bed",
         type=str,
         required=True,
-        help="bed file containing crosslink counts at each position",
+        help="bed file containing cDNA counts at each crosslink position",
     )
     required.add_argument(
-        "-o", "--outputprefix", type=str, required=True, help="prefix for output files",
+        "-o",
+        "--output_prefix",
+        type=str,
+        required=True,
+        help="prefix for output files",
     )
     required.add_argument(
-        "-a", "--annot", type=str, required=True, help="gtf annotation file",
+        "-a", "--annotation", type=str, required=True, help="gtf annotation file",
     )
     required.add_argument(
         "-g",
@@ -98,86 +105,162 @@ def parse_arguments(input_arguments):
         type=str,
         required=True,
         help=(
-            "genome file containing chromosome lengths. Also known as a FASTA"
-            "index file, which usually ends in .fai. This file is used by"
+            "genome file containing chromosome lengths. Also known as a FASTA "
+            "index file, which usually ends in .fai. This file is used by "
             "BEDTools for genomic operations"
         ),
     )
-    optional.add_argument(
-        "-n",
-        "--windowsize",
-        type=int,
-        default=10,
-        nargs="?",
-        help="rolling mean window size [DEFAULT 10]",
+    # Peak size parameters
+    peak_size = parser.add_argument_group(
+        "optional peak size arguments", "Control the size of the peaks called"
     )
-    optional.add_argument(
+    peak_size.add_argument(
+        "-n",
+        "--window_size",
+        type=type(clip.defaults.window_size),
+        default=clip.defaults.window_size,
+        nargs="?",
+        help=("rolling mean window size [DEFAULT {}]").format(
+            clip.defaults.window_size
+        ),
+    )
+    peak_size.add_argument(
+        "-w",
+        "--width",
+        type=type(clip.defaults.width),
+        default=clip.defaults.width,
+        nargs="?",
+        help=(
+            "proportion of prominence to calculate peak widths at. "
+            "Smaller values will give narrow peaks and large values will give "
+            "wider peaks [DEFAULT {}]"
+        ).format(clip.defaults.width),
+    )
+    # Peak filtering parameters
+    peak_filtering = parser.add_argument_group(
+        "optional peak filtering arguments", "Control how peaks are filtered"
+    )
+    peak_filtering.add_argument(
+        "-x",
+        "--min_prom_adjust",
+        type=type(clip.defaults.min_prom_adjust),
+        default=clip.defaults.min_prom_adjust,
+        nargs="?",
+        help=(
+            "adjustment for minimum prominence threshold, calculated as this "
+            "value multiplied by the mean [DEFAULT {}]"
+        ).format(clip.defaults.min_prom_adjust),
+    )
+    peak_filtering.add_argument(
+        "-mx",
+        "--min_height_adjust",
+        type=type(clip.defaults.min_height_adjust),
+        default=clip.defaults.min_height_adjust,
+        nargs="?",
+        help=(
+            "adjustment for the minimum height threshold, calculated as this "
+            "value multiplied by the mean [DEFAULT {}]"
+        ).format(clip.defaults.min_height_adjust),
+    )
+    peak_filtering.add_argument(
+        "-mg",
+        "--min_gene_counts",
+        type=type(clip.defaults.min_gene_counts),
+        default=clip.defaults.min_gene_counts,
+        nargs="?",
+        help=("minimum cDNA counts per gene to look for peaks [DEFAULT {}]").format(
+            clip.defaults.min_gene_counts
+        ),
+    )
+    peak_filtering.add_argument(
+        "-mb",
+        "--min_peak_counts",
+        type=type(clip.defaults.min_peak_counts),
+        default=clip.defaults.min_peak_counts,
+        nargs="?",
+        help=("minimum cDNA counts per broad peak [DEFAULT {}]").format(
+            clip.defaults.min_peak_counts
+        ),
+    )
+    # Annotation arguments
+    annotation = parser.add_argument_group(
+        "optional annotation arguments",
+        "Control how the gene annotation is interpreted and used",
+    )
+    annotation.add_argument(
+        "-alt",
+        "--alt_features",
+        type=str,
+        nargs="?",
+        help=(
+            "A list of alternative GTF features to set individual "
+            "thresholds on in the comma-separated format "
+            "<alt_feature_name>-<gtf_key>-<search_pattern>"
+        ),
+    )
+    annotation.add_argument(
         "-up",
         "--upstream_extension",
-        type=int,
-        default=0,
+        type=type(clip.defaults.upstream_extension),
+        default=clip.defaults.upstream_extension,
         nargs="?",
-        help="upstream extension added to gene models [DEFAULT 0]",
+        help=("upstream extension added to gene models [DEFAULT {}]").format(
+            clip.defaults.upstream_extension
+        ),
     )
-    optional.add_argument(
+    annotation.add_argument(
         "-down",
         "--downstream_extension",
-        type=int,
-        default=0,
+        type=type(clip.defaults.downstream_extension),
+        default=clip.defaults.downstream_extension,
         nargs="?",
-        help="downstream extension added to gene models [DEFAULT 0]",
+        help=("downstream extension added to gene models [DEFAULT {}]").format(
+            clip.defaults.downstream_extension
+        ),
     )
-    optional.add_argument(
-        "-x",
-        "--adjust",
-        type=float,
-        default=1,
+    annotation.add_argument(
+        "-nei",
+        "--no_exon_info",
+        action="store_true",
+        help="Turn off individual exon and intron thresholds",
+    )
+    annotation.add_argument(
+        "-inter",
+        "--intergenic_peak_threshold",
+        type=type(clip.defaults.intergenic_peak_threshold),
+        default=clip.defaults.intergenic_peak_threshold,
         nargs="?",
-        help="adjustment for prominence [DEFAULT 1]",
+        help=(
+            "Intergenic peaks are called by first creating intergenic regions "
+            "and calling peaks on the regions as though they were genes. "
+            "The regions are made by expanding intergenic crosslinks and "
+            "merging the result. This parameter is the threshold number of "
+            "summed cDNA counts required to include a region. If set to zero, "
+            "the default, no intergenic peaks will be called. When using this "
+            "mode, the intergenic regions used will be output as a GTF file. "
+            "[DEFAULT {}]"
+        ).format(clip.defaults.intergenic_peak_threshold),
     )
-    optional.add_argument(
-        "-hc",
-        "--height_cutoff",
-        type=float,
-        default=0.4,
-        nargs="?",
-        help="proportion of prominence [DEFAULT 0.4]",
-    )
-    optional.add_argument(
-        "-mg",
-        "--mingenecounts",
-        type=int,
-        default=5,
-        nargs="?",
-        help="min counts per gene to look for peaks [DEFAULT 5]",
-    )
-    optional.add_argument(
-        "-mb",
-        "--minpeakcounts",
-        type=int,
-        default=5,
-        nargs="?",
-        help="min counts per broad peak [DEFAULT 5]",
-    )
+    # Optional parameters
     optional.add_argument(
         "-t",
         "--threads",
-        type=int,
-        default=1,
+        type=type(clip.defaults.threads),
+        default=clip.defaults.threads,
         nargs="?",
-        help="number of threads to use",
+        help="number of threads to use. [DEFAULT {}]".format(clip.defaults.threads),
     )
     optional.add_argument(
         "-cf",
         "--chunksize_factor",
-        type=int,
-        default=16,
+        type=type(clip.defaults.chunksize_factor),
+        default=clip.defaults.chunksize_factor,
         nargs="?",
         help=(
             "A factor used to control the number of jobs given to a thread at "
             "a time. A larger number reduces the number of jobs per chunk. "
-            "Only increase if you experience crashes [DEFAULT 4]"
-        ),
+            "Only increase if you experience crashes [DEFAULT {}]"
+        ).format(clip.defaults.chunksize_factor),
     )
     optional.add_argument(
         "-int",
@@ -185,70 +268,32 @@ def parse_arguments(input_arguments):
         action="store_true",
         help="starts a Dash server to allow for interactive parameter tuning",
     )
-    optional.add_argument(
-        "-nei",
-        "--no_exon_info",
-        action="store_true",
-        help="Turn off individual exon and intron thresholds",
-    )
-    optional.add_argument(
-        "-inter",
-        "--intergenic_peak_threshold",
-        type=int,
-        default=0,
-        nargs="?",
-        help=(
-            "Intergenic peaks are called by first creating intergenic regions "
-            "and calling peaks on the regions as though they were genes. "
-            "The regions are made by expanding intergenic crosslinks and "
-            "merging the result. This parameter is the threshold number of "
-            "crosslinks required to include a region. If set to zero (default), "
-            "no intergenic peaks will be called. When using this mode, the "
-            "intergenic regions used will be output as a GTF file. [DEFAULT 0]"
-        ),
-    )
-    optional.add_argument(
-        "-alt",
-        "--alt_features",
-        type=str,
-        nargs="?",
-        help=(
-            "A list of alternative GTF features to set individual height "
-            "thresholds on in the comma-separated format "
-            "<alt_feature_name>-<gtf_key>-<search_pattern>"
-        ),
-    )
-    optional.add_argument(
-        "-mx",
-        "--min_height_adjust",
-        type=float,
-        default=1,
-        nargs="?",
-        help="adjustment for the minimum height threshold, calculated as this value multiplied by the mean [DEFAULT 1]",
-    )
     parser._action_groups.append(optional)
     args = parser.parse_args(input_arguments)
     print(args)
     outfile_name = "".join(
         [
-            args.outputprefix,
+            args.output_prefix,
             "_rollmean",
-            str(args.windowsize),
-            "_stdev",
-            str(args.adjust),
+            str(args.window_size),
+            "_minHeightAdjust",
+            str(args.min_height_adjust),
+            "_minPromAdjust",
+            str(args.min_prom_adjust),
             "_minGeneCount",
-            str(args.mingenecounts),
+            str(args.min_gene_counts),
         ]
     )
+    print(str(args.min_prom_adjust))
     return (
-        args.inputbed,
-        args.annot,
-        args.windowsize,
-        args.adjust,
-        args.height_cutoff,
-        args.mingenecounts,
+        args.input_bed,
+        args.annotation,
+        args.window_size,
+        args.min_prom_adjust,
+        args.width,
+        args.min_gene_counts,
         outfile_name,
-        args.minpeakcounts,
+        args.min_peak_counts,
         args.threads,
         args.chunksize_factor,
         args.interactive,

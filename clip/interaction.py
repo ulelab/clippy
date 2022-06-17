@@ -13,6 +13,8 @@ import clip
 import re
 
 top_x_search_results = 20
+max_command_line_len = 90
+adjustments_max = 6
 name_delimiter = "; "
 gtf_delimiter = ";"
 gtf_attribute_filters = ["_name", "_id"]
@@ -30,15 +32,15 @@ class DashApp:
         self.gene_overlap_dict = {}
         self.app = dash.Dash(__name__, external_stylesheets=[dash_bs.themes.BOOTSTRAP])
         self.base_command_list = [
-            "./clip.py",
-            "-i",
+            "clippy",
+            "--input_bed",
             counts_bed.__dict__["fn"],
-            "-a",
-            annot,
-            "-g",
-            genome_file,
-            "-o",
+            "--output_prefix",
             "OUTPUT_PREFIX",
+            "--annotation",
+            annot,
+            "--genome_file",
+            genome_file,
         ]
 
     def read_annot(self, annot):
@@ -161,6 +163,7 @@ class DashApp:
                                                     ),
                                                 ]
                                             ),
+                                            dash_html.Hr(),
                                             dash_html.Label("Gene search"),
                                             dash_html.Div(
                                                 [
@@ -185,6 +188,9 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            #  Peak size parameters
+                                            dash_html.Hr(),
+                                            dash_html.H5("Peak size"),
                                             dash_html.Label("Rolling mean window size"),
                                             dash_html.Div(
                                                 [
@@ -203,7 +209,7 @@ class DashApp:
                                                             ]
                                                         ],
                                                         id="n-select",
-                                                        value=15,
+                                                        value=clip.defaults.window_size,
                                                         multi=False,
                                                         optionHeight=20,
                                                     )
@@ -213,65 +219,15 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label("Prominence adjustment"),
+                                            dash_html.Label("Peak width"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
-                                                        id="x-slider",
-                                                        min=0,
-                                                        max=3,
-                                                        step=0.1,
-                                                        value=1,
-                                                        marks={
-                                                            0: "0",
-                                                            1: "1",
-                                                            2: "2",
-                                                            3: "3",
-                                                        },
-                                                        tooltip={
-                                                            "always_visible": True,
-                                                            "placement": "bottom",
-                                                        },
-                                                    )
-                                                ],
-                                                style={
-                                                    "marginBottom": "1.5em",
-                                                    "marginTop": "0.5em",
-                                                },
-                                            ),
-                                            dash_html.Label(
-                                                "Minimum height adjustment"
-                                            ),
-                                            dash_html.Div(
-                                                [
-                                                    dash_cc.Slider(
-                                                        id="min-height-adjust-slider",
-                                                        min=0,
-                                                        max=10,
-                                                        step=0.1,
-                                                        value=1,
-                                                        tooltip={
-                                                            "always_visible": True,
-                                                            "placement": "bottom",
-                                                        },
-                                                    )
-                                                ],
-                                                style={
-                                                    "marginBottom": "1.5em",
-                                                    "marginTop": "0.5em",
-                                                },
-                                            ),
-                                            dash_html.Label(
-                                                "Relative height (peak threshold)"
-                                            ),
-                                            dash_html.Div(
-                                                [
-                                                    dash_cc.Slider(
-                                                        id="rel_height",
+                                                        id="width",
                                                         min=0,
                                                         max=1,
                                                         step=0.05,
-                                                        value=0.8,
+                                                        value=clip.defaults.width,
                                                         marks={0: "0", 1: "1",},
                                                         tooltip={
                                                             "always_visible": True,
@@ -284,9 +240,63 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            dash_html.Hr(),
+                                            dash_html.H5("Peak filtering"),
                                             dash_html.Label(
-                                                "Minimum counts per gene to look for peaks"
+                                                "Min. prominence adjustment"
                                             ),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="x-slider",
+                                                        min=0,
+                                                        max=adjustments_max,
+                                                        step=0.1,
+                                                        value=clip.defaults.min_prom_adjust,
+                                                        marks={
+                                                            i: str(i)
+                                                            for i in range(
+                                                                adjustments_max + 1
+                                                            )
+                                                        },
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
+                                            dash_html.Label("Min. height adjustment"),
+                                            dash_html.Div(
+                                                [
+                                                    dash_cc.Slider(
+                                                        id="min-height-adjust-slider",
+                                                        min=0,
+                                                        max=adjustments_max,
+                                                        step=0.1,
+                                                        value=clip.defaults.min_height_adjust,
+                                                        marks={
+                                                            i: str(i)
+                                                            for i in range(
+                                                                adjustments_max + 1
+                                                            )
+                                                        },
+                                                        tooltip={
+                                                            "always_visible": True,
+                                                            "placement": "bottom",
+                                                        },
+                                                    )
+                                                ],
+                                                style={
+                                                    "marginBottom": "1.5em",
+                                                    "marginTop": "0.5em",
+                                                },
+                                            ),
+                                            dash_html.Label("Min. counts per gene"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
@@ -294,7 +304,7 @@ class DashApp:
                                                         min=1,
                                                         max=200,
                                                         step=1,
-                                                        value=5,
+                                                        value=clip.defaults.min_gene_counts,
                                                         marks={1: "1", 200: "200",},
                                                         tooltip={
                                                             "always_visible": True,
@@ -307,7 +317,7 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
-                                            dash_html.Label("Minimum counts per peak"),
+                                            dash_html.Label("Min. counts per peak"),
                                             dash_html.Div(
                                                 [
                                                     dash_cc.Slider(
@@ -315,7 +325,7 @@ class DashApp:
                                                         min=1,
                                                         max=200,
                                                         step=1,
-                                                        value=5,
+                                                        value=clip.defaults.min_peak_counts,
                                                         marks={1: "1", 200: "200",},
                                                         tooltip={
                                                             "always_visible": True,
@@ -328,6 +338,9 @@ class DashApp:
                                                     "marginTop": "0.5em",
                                                 },
                                             ),
+                                            #  Annotation parameters
+                                            dash_html.Hr(),
+                                            dash_html.H5("Annotation"),
                                             dash_html.Label("Alternative features"),
                                             dash_html.Div(
                                                 [
@@ -349,7 +362,7 @@ class DashApp:
                                                         min=0,
                                                         max=max_window_size,
                                                         step=50,
-                                                        value=0,
+                                                        value=clip.defaults.upstream_extension,
                                                         tooltip={
                                                             "always_visible": True,
                                                             "placement": "bottom",
@@ -369,7 +382,7 @@ class DashApp:
                                                         min=0,
                                                         max=max_window_size,
                                                         step=50,
-                                                        value=0,
+                                                        value=clip.defaults.downstream_extension,
                                                         tooltip={
                                                             "always_visible": True,
                                                             "placement": "bottom",
@@ -387,7 +400,7 @@ class DashApp:
                                                         id="exon-intron-bool",
                                                         options=[
                                                             {
-                                                                "label": "Separate exon thresholds",
+                                                                "label": " Separate exon thresholds",
                                                                 "value": 1,
                                                             }
                                                         ],
@@ -420,7 +433,7 @@ class DashApp:
             Input("gene-select", "value"),
             Input("n-select", "value"),
             Input("x-slider", "value"),
-            Input("rel_height", "value"),
+            Input("width", "value"),
             Input("min-count-slider", "value"),
             Input("min-peak-count-slider", "value"),
             Input("alt-features-input", "value"),
@@ -502,7 +515,7 @@ class DashApp:
         gene_list,
         N,
         X,
-        rel_height,
+        width,
         min_gene_count,
         min_peak_count,
         alt_feature_search,
@@ -592,7 +605,7 @@ class DashApp:
                     None,
                     N,
                     X,
-                    rel_height,
+                    width,
                     min_gene_count,
                     min_peak_count,
                     alt_feature_search,
@@ -609,7 +622,7 @@ class DashApp:
                     gene,
                     N,
                     X,
-                    rel_height,
+                    width,
                     min_gene_count,
                     min_peak_count,
                     alt_feature_search,
@@ -623,26 +636,47 @@ class DashApp:
             ]
         # Setup the command list
         command_list = self.base_command_list[:]
-        command_list += ["-n", str(N)]
-        command_list += ["-up", str(up_ext)]
-        command_list += ["-down", str(down_ext)]
-        command_list += ["-x", str(X)]
-        command_list += ["-hc", str(rel_height)]
-        command_list += ["-mg", str(min_gene_count)]
-        command_list += ["-mb", str(min_peak_count)]
-        command_list += ["-mx", str(min_height_adjust)]
+        if not N == clip.defaults.window_size:
+            command_list += ["--window_size", str(N)]
+        if not width == clip.defaults.width:
+            command_list += ["--width", str(width)]
+        if not X == clip.defaults.min_prom_adjust:
+            command_list += ["--min_prom_adjust", str(X)]
+        if not min_height_adjust == clip.defaults.min_height_adjust:
+            command_list += ["--min_height_adjust", str(min_height_adjust)]
+        if not min_gene_count == clip.defaults.min_gene_counts:
+            command_list += ["--min_gene_counts", str(min_gene_count)]
+        if not min_peak_count == clip.defaults.min_peak_counts:
+            command_list += ["--min_peak_counts", str(min_peak_count)]
         if alt_feature_search:
-            command_list += ["-alt", alt_feature_search]
+            command_list += ["--alt_features", alt_feature_search]
+        if not up_ext == clip.defaults.upstream_extension:
+            command_list += ["--upstream_extension", str(up_ext)]
+        if not down_ext == clip.defaults.downstream_extension:
+            command_list += ["--downstream_extension", str(down_ext)]
         if len(exon_intron_bool) == 0:
             command_list.append("--no_exon_info")
-        return (figs, " ".join(command_list), "Idle")
+        return (figs, self.format_command_list(command_list), "Idle")
+
+    def format_command_list(self, command_list):
+        output_list = [command_list.pop(0)]
+        current_line_len = len(output_list[0])
+        for idx in range(0, len(command_list), 2):
+            next_element = " " + " ".join(command_list[idx : (idx + 2)])
+            if current_line_len + len(next_element) > max_command_line_len:
+                output_list.append(" \\")
+                output_list.append(dash_html.Br())
+                current_line_len = 0
+            output_list.append(next_element)
+            current_line_len += len(next_element)
+        return output_list
 
     def peak_call_and_plot(
         self,
         gene_name,
         N,
         X,
-        rel_height,
+        width,
         min_gene_count,
         min_peak_count,
         alt_feature_search,
@@ -775,7 +809,7 @@ class DashApp:
                 xlinks,
                 N,
                 X,
-                rel_height,
+                width,
                 min_gene_count,
                 min_peak_count,
                 annot_exon,
@@ -792,14 +826,13 @@ class DashApp:
                     heights,
                     prominences,
                 ) = ([[]] * 3 + [[[]]] + [[]] * 2)
-        # Plot the rolling mean and thresholds
         fig = make_subplots(
             rows=3,
             row_heights=[0.90, 0.05, 0.05],
             shared_xaxes=True,
             vertical_spacing=0.12,
         )
-        # below is code for adding relative height (broad peak) trace
+        # Add peak trace
         fig.add_trace(
             plotlygo.Scatter(
                 x=np.array(
@@ -831,7 +864,7 @@ class DashApp:
             row=1,
             col=1,
         )
-        # below is code for adding smoothed signal trace
+        # Add smoothed signal trace
         fig.add_trace(
             plotlygo.Scatter(
                 x=list(range(len(roll_mean_smoothed_scores))),
@@ -843,7 +876,7 @@ class DashApp:
             row=1,
             col=1,
         )
-        grid_colour = "darkgrey"
+        grid_colour = "lightgrey"
         fig.update_xaxes(
             title={"text": "Position", "standoff": 0.05},
             zerolinecolor=grid_colour,
@@ -911,7 +944,6 @@ class DashApp:
             )
 
             # add arrow corresponding to gene strand
-            # get strand - how?????
             direction = self.gene_xlink_dicts[gene_name]["strand"][0]
             if direction == "+":
                 marksymb = "triangle-right"
@@ -1012,6 +1044,7 @@ class DashApp:
             },
             legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": -0.5},
         )
+        # Add minimum height threshold
         if len(roll_mean_smoothed_scores) > 0:
             mean_val = np.mean(roll_mean_smoothed_scores)
             fig.add_trace(
@@ -1019,32 +1052,83 @@ class DashApp:
                     x=list(range(len(roll_mean_smoothed_scores))),
                     y=heights,
                     mode="lines",
-                    name="Mean",
+                    name="Height threshold",
                     line=dict(color="crimson", width=2),
-                ),
-                row=1,
-                col=1,
-            )
-            fig.add_trace(
-                plotlygo.Scatter(
-                    x=list(range(len(roll_mean_smoothed_scores))),
-                    y=heights
-                    + prominences,  # [prominence_threshold_val] * len(roll_mean_smoothed_scores),
-                    mode="lines",
-                    name="Prominence threshold",
-                    line=dict(color="forestgreen", width=2),
                 ),
                 row=1,
                 col=1,
             )
         # Add in peaks, if they have been called
         if len(peak_details[0]) > 0:
+            # Plot prominence lines for each peak
+            fig.add_trace(
+                plotlygo.Scatter(
+                    x=np.array(
+                        [
+                            [peak_details[0][idx], peak_details[0][idx], None,]
+                            for idx in range(len(peak_details[0]))
+                        ]
+                    ).flatten(),
+                    y=np.array(
+                        [
+                            [
+                                peak_details[1]["peak_heights"][idx],
+                                (
+                                    peak_details[1]["peak_heights"][idx]
+                                    - peak_details[1]["prominences"][idx]
+                                ),
+                                None,
+                            ]
+                            for idx in range(len(peak_details[0]))
+                        ]
+                    ).flatten(),
+                    mode="lines",
+                    name="Peak prominences",
+                    line=dict(color="grey", width=2),
+                ),
+                row=1,
+                col=1,
+            )
+            # Plot the prominence threshold on top of each peak prominence
+            fig.add_trace(
+                plotlygo.Scatter(
+                    x=np.array(
+                        [
+                            [peak_details[0][idx], peak_details[0][idx], None,]
+                            for idx in range(len(peak_details[0]))
+                        ]
+                    ).flatten(),
+                    y=np.array(
+                        [
+                            [
+                                (
+                                    peak_details[1]["peak_heights"][idx]
+                                    - peak_details[1]["prominences"][idx]
+                                ),
+                                (
+                                    peak_details[1]["peak_heights"][idx]
+                                    - peak_details[1]["prominences"][idx]
+                                    + prominences[peak_details[0][idx]]
+                                ),
+                                None,
+                            ]
+                            for idx in range(len(peak_details[0]))
+                        ]
+                    ).flatten(),
+                    mode="lines",
+                    name="Prominence threshold",
+                    line=dict(color="green", width=4),
+                ),
+                row=1,
+                col=1,
+            )
+            # Plot summit markers
             fig.add_trace(
                 plotlygo.Scatter(
                     x=peak_details[0],
                     y=[roll_mean_smoothed_scores[idx] for idx in peak_details[0]],
                     mode="markers",
-                    marker_size=12,
+                    marker_size=8,
                     marker_color="mediumvioletred",
                     marker_line={"width": 2, "color": "darkslateblue"},
                     name="Peak summits",
@@ -1052,37 +1136,26 @@ class DashApp:
                 row=1,
                 col=1,
             )
-            # fig.update_traces(
-            #    marker={
-            #        "size": 12,
-            #        "color": "mediumvioletred",
-            #        "line": {
-            #            "width": 2,
-            #            "color": "darkslateblue"
-            #        }
-            #    },
-            #    selector={"mode": "markers"}
-            # )
 
+        # Keep the same zoom levels for the graph, if the user has changed that
         current_relayout_data = None
         if current_figures:
             for graph in current_figures:
                 title = graph["props"]["figure"]["layout"]["title"]
-                if "text" in title and title["text"] == gene_name:
+                if "text" in title and title["text"] == plot_title:
                     if "relayoutData" in graph["props"]:
                         current_relayout_data = graph["props"]["relayoutData"]
-        # Keep the same zoom level for the graph, if the user has changed that
         if current_relayout_data and "xaxis.range[0]" in current_relayout_data:
             fig["layout"]["xaxis"]["range"] = [
                 current_relayout_data["xaxis.range[0]"],
                 current_relayout_data["xaxis.range[1]"],
             ]
-        # I think fixing y axis provides more intuitive "genome browser" experience - CC
         if current_relayout_data and "yaxis.range[0]" in current_relayout_data:
             fig["layout"]["yaxis"]["range"] = [
                 current_relayout_data["yaxis.range[0]"],
                 current_relayout_data["yaxis.range[1]"],
             ]
+
         return dash_cc.Graph(
             id="gene-graph-" + str(gene_name),
             figure=fig,
