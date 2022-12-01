@@ -163,3 +163,10 @@ gunzip -c tests/data/HepG2_RBFOX2.xl.bed.gz | \
 Charlotte Capitanchik - charlotte.capitanchik@crick.ac.uk
 
 Marc Jones - marc.jones@crick.ac.uk
+
+## Publications
+Clippy has been used in multiple publications:
+
+Kuret, K., Amalietti, A. G., Jones, D. M., Capitanchik, C., & Ule, J. (2022). Positional motif analysis reveals the extent of specificity of protein-RNA interactions observed by CLIP. Genome biology, 23(1), 1-34.
+
+Varier, R. A., Sideri, T., Capitanchik, C., Manova, Z., Calvani, E., Rossi, A., ... & van Werven, F. (2022). m6A reader Pho92 is recruited co-transcriptionally and couples translation efficacy to mRNA decay to promote meiotic fitness in yeast. eLife
