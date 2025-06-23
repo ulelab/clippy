@@ -36,7 +36,7 @@ To start the interactive parameter search server for the test yeast data, run:
 
 ```
 clippy --input_bed tests/data/crosslinkcounts.bed --output_prefix OUTPUT_PREFIX \
-       --annotation tests/data/annot.gff --genome_file tests/data/genome.fa.fai
+       --annotation tests/data/annot.gff --genome_file tests/data/genome.fa.fai -int
 ```
 
 ## Usage
