@@ -24,6 +24,11 @@ conda create --name clippy python=3.8
 conda activate clippy
 conda install -c bioconda -c conda-forge clippy 
 ```
+If you are having problems solving the environment try switching to mamba solver:
+```
+conda config --set solver libmamba
+```
+Using newer versions of bedtools >2.26.0 will break Clippy.
 
 ## Run test data
 
